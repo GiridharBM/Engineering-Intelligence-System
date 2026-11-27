@@ -236,7 +236,7 @@ Goal: evolve a benign skill into a privileged one
 | R-08 | PAM semantic index poisoned | Low | Medium | Accepted | Candidate-only, provenance display, lexical baseline |
 | R-09 | Model provider retains prompts | Medium | Medium | Accepted if consented | Consent names retention unknown; local default |
 | R-10 | User configures project root = home directory | Medium | High | Accepted with warning | Scope warning, exclusion defaults, read budget |
-| R-11 | Windows local actor wins the check/open swap window | Low | High | Accepted, documented | Identity comparison and post-read re-check; POSIX descriptor walk; T2 remains future work |
+| R-11 | Windows local actor wins the check/open swap window | Low | High | Accepted, documented | Identity comparison and post-read re-check; POSIX descriptor walk; T2 is Linux-only and unavailable on this Windows host |
 | R-12 | Filesystem reports unstable or zero `st_dev`/`st_ino` | Low | Medium | Accepted, documented | Path/identity check fails closed only when values change; registration remains explicit |
 
 ## 10. Security Test Plan

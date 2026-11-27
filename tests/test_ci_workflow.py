@@ -21,7 +21,9 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 USES_RE = re.compile(r"(?m)^\s*(?:-\s+)?uses:\s*([^\s#]+)")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SECRETS_RE = re.compile(r"secrets\.([A-Za-z0-9_]+)")
-JOBS = ("lint", "typecheck", "test", "security", "privacy", "package")
+JOBS = ("lint", "typecheck", "test", "security", "privacy", "package", "t2-linux")
+# Narrow, non-secret T2 verification inputs; no provider or credential state.
+T2_ENV_ALLOWLIST = {"EIS_T2_IMAGE", "EIS_T2_SECCOMP"}
 
 
 def _text() -> str:
@@ -76,6 +78,8 @@ def test_required_checks_are_present() -> None:
         "eis privacy-check",
         "uv build",
         "scripts/verify_wheel.py",
+        "scripts/verify_t2_linux.py",
+        "docker pull",
         "gitleaks/gitleaks-action@",
     ):
         assert command in text, f"missing check: {command}"
@@ -100,5 +104,7 @@ def test_jobs_are_bounded_and_need_no_local_state() -> None:
     # No local secrets, provider configuration or environment overrides.
     assert ".env" not in text
     assert "API_KEY" not in text
-    assert re.search(r"EIS_[A-Z_]+", text) is None
+    assert set(re.findall(r"EIS_[A-Z0-9_]+", text)) <= T2_ENV_ALLOWLIST
+    assert re.search(r"docker\.io/library/alpine@sha256:[0-9a-f]{64}", text)
+    assert "alpine:latest" not in text
     assert "provider" not in text.lower()

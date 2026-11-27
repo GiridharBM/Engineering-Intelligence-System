@@ -133,3 +133,29 @@ jobs:
       - name: Smoke-test the built wheel
         shell: bash
         run: uv run --python 3.12 --isolated --no-project --with "$(ls dist/*.whl)" eis version
+
+  t2-linux:
+    name: T2 Linux container (real backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Immutable multi-arch digest; no mutable tag is accepted by the backend.
+      EIS_T2_IMAGE: docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+      EIS_T2_SECCOMP: policies/t2-seccomp-probe.json
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Pull digest-pinned probe image
+        shell: bash
+        run: docker pull "$EIS_T2_IMAGE"
+      - run: uv sync --locked --all-extras
+      - name: Verify real Linux T2 protections
+        run: uv run --locked python scripts/verify_t2_linux.py

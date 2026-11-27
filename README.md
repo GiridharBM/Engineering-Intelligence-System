@@ -27,7 +27,7 @@ This repository contains the M0 specification package, the M0.2 bootstrap founda
 | Product, architecture, security, privacy, data, API specs | Complete (`docs/`) |
 | Governance files | Complete |
 | Application code | M0.2 skeleton plus policy/provider/storage/audit, digest-bound approvals, bounded execution, durable session/task and project-root registry, strict read-only model loop and plans, explicit interrupted-plan recovery, fail-closed T2 Linux backend, and task-bound model write proposals that stop for human approval and complete only with execution evidence |
-| Tests and CI | 315 tests passing locally (1 POSIX-only test skipped on Windows); clean-copy install verified offline on Python 3.11 and 3.12; CI configured but not yet executed |
+| Tests and CI | 323 tests passing locally (1 POSIX-only test skipped on Windows); clean-copy install verified offline on Python 3.11 and 3.12; CI configured but not yet executed |
 | Licence | Apache-2.0 adopted; `LICENSE` and `NOTICE` present |
 | Git repository | Initialised locally; no remote and no commits |
 

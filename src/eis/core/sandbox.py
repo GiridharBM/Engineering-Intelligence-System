@@ -344,14 +344,19 @@ def probe_linux_container(engine: str, image: str, seccomp_profile: Path) -> San
         image,
         "/bin/sh",
         "-c",
-        'test ! -w / && test ! -w /workspace && test "$(id -u)" = 10001',
+        'test ! -w / && test ! -w /workspace && test "$(id -u)" = 10001 && '
+        "cat /proc/self/status && printf '\\n__NET__\\n' && ls /sys/class/net && "
+        "printf '__PIDS__\\n' && cat /sys/fs/cgroup/pids.max && "
+        "printf '__CPU__\\n' && cat /sys/fs/cgroup/cpu.max && "
+        "printf '__MEM__\\n' && cat /sys/fs/cgroup/memory.max",
     ]
     try:
         completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
             argv,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            text=True,
             timeout=PROBE_TIMEOUT_SECONDS,
             shell=False,
             check=False,
@@ -360,21 +365,44 @@ def probe_linux_container(engine: str, image: str, seccomp_profile: Path) -> San
         return caps
     if completed.returncode != 0:
         return caps
+    try:
+        observed = _parse_probe(completed.stdout)
+    except (ValueError, IndexError, AttributeError):
+        return caps
     return SandboxCapabilities(
         platform=sys.platform,
         engine=engine,
         immutable_image=True,
         non_root=True,
-        no_network=True,
+        no_network=observed["no_network"],
         read_only_rootfs=True,
         read_only_project_mount=True,
-        capabilities_dropped=True,
-        no_new_privileges=True,
-        seccomp=True,
-        pids_limit=True,
-        resource_limits=True,
+        capabilities_dropped=observed["capabilities_dropped"],
+        no_new_privileges=observed["no_new_privileges"],
+        seccomp=observed["seccomp"],
+        pids_limit=observed["pids_limit"],
+        resource_limits=observed["resource_limits"],
         disposable_copy=True,
     )
+
+
+def _parse_probe(stdout: str) -> dict[str, bool]:
+    def section(name: str) -> str:
+        return stdout.split(f"__{name}__\n", 1)[1].split("\n", 1)[0].strip()
+
+    pids = section("PIDS")
+    cpu = section("CPU")
+    memory = section("MEM")
+    return {
+        "no_network": section("NET").split() == ["lo"],
+        "capabilities_dropped": bool(re.search(r"(?m)^CapEff:\s*0+\s*$", stdout)),
+        "no_new_privileges": bool(re.search(r"(?m)^NoNewPrivs:\s*1\s*$", stdout)),
+        "seccomp": bool(re.search(r"(?m)^Seccomp:\s*[1-9][0-9]*\s*$", stdout)),
+        "pids_limit": pids.isdigit() and int(pids) <= 256,
+        "resource_limits": (
+            bool(cpu) and not cpu.startswith("max") and bool(memory) and memory != "max"
+        ),
+    }
 
 
 def _collect(process: subprocess.Popen[bytes], request: SandboxRequest) -> SandboxResult:

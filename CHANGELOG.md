@@ -10,6 +10,8 @@ All notable changes to EIS are documented here. Format follows [Keep a Changelog
 
 - **M1 CLI consumed-approval digest fix:** `eis approval execute` now validates the supplied digest with `hmac.compare_digest` against `record.request_digest` before any consumed-approval recovery. Wrong digests exit `digest_mismatch` without completing a task, triggering `execution_unverified`, or changing execution-run counts; correct-digest recovery remains idempotent. Added CLI regression tests for wrong digest with/without successful evidence and correct-digest retry.
 
+- **M1 real Linux T2 verification in CI:** added a dedicated Ubuntu job that pulls digest-pinned `docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf`, uses checked-in `policies/t2-seccomp-probe.json`, and runs `scripts/verify_t2_linux.py` against the real backend. The probe now verifies non-root, read-only root/workspace, zero effective capabilities, no-new-privileges, seccomp, loopback-only network, cgroup limits, output cap, timeout, disposable copy and cleanup; missing capability/mutable image fail closed. Documented that this is point-in-time runner evidence, not protection against a compromised runner or kernel.
+
 ### Added
 
 - **M1 fail-closed crash recovery (ADR-049):** mapped durable boundaries for task, plan steps, tool invocation, approval and execution. Consumed approvals without successful `execution_runs` evidence now fail terminally as `execution_unverified` via CLI/API retry instead of repeating a write or claiming completion; migration `0010` adds DB transition guards. Added fault-injection tests for side effect before evidence, audit failure during read-only recovery, repeated resume, stale policy/root and no duplicate side effects. API spec corrected to mark `GET /api/v1/audit/events` implemented.
@@ -176,7 +178,7 @@ All notable changes to EIS are documented here. Format follows [Keep a Changelog
 ### Notes
 
 - M0.2 acceptance is **not complete**. GitHub-hosted CI has not run, branch protection cannot be configured without a remote and first push, and dependency licence review is outstanding. Clean-copy installation and fresh-wheel verification are now evidenced locally on Windows with Python 3.11 and 3.12.
-- M1 policy, provider, storage, audit-chain, policy-persistence, approval/execution, runtime, read-only-tool, bounded model-loop and durable-plan checks pass on Python 3.12.13 and Python 3.11 (fresh wheel): 315 tests locally (1 POSIX-only skip on Windows), 217 passed / 6 skipped in a clean copy on each supported Python (at the M0.2 verification point), Ruff, Ruff format, Mypy, privacy-check, pip-audit, build, wheel verification and Markdown links.
+- M1 policy, provider, storage, audit-chain, policy-persistence, approval/execution, runtime, read-only-tool, bounded model-loop and durable-plan checks pass on Python 3.12.13 and Python 3.11 (fresh wheel): 323 tests locally (1 POSIX-only skip on Windows), 217 passed / 6 skipped in a clean copy on each supported Python (at the M0.2 verification point), Ruff, Ruff format, Mypy, privacy-check, pip-audit, build, wheel verification and Markdown links.
 - Local M0.2 checks on Python 3.12.13 and Python 3.11 previously passed with 37 tests.
 - GitHub Actions are pinned to full commit SHAs verified against their release tags; CI itself has not run because no remote exists.
 - No remote, push or commit was created.

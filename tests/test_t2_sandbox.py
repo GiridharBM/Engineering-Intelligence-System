@@ -20,6 +20,7 @@ from eis.core.sandbox import (
     SandboxCapabilities,
     SandboxRequest,
     SandboxResult,
+    _parse_probe,
     probe_linux_container,
     validate_env_allowlist,
 )
@@ -377,3 +378,49 @@ def test_writable_profile_uses_disposable_copy_and_cleans_up(
     assert captured["cleanup"] == "eis-run_cccccccccccccccccccccccccccccccc"
     assert not workspace.exists()  # temporary writable copy discarded
     assert not (workspace.parent / ".env").exists()
+
+
+_GOOD_PROBE = (
+    "CapEff:\t0000000000000000\n"
+    "NoNewPrivs:\t1\n"
+    "Seccomp:\t2\n"
+    "__NET__\n"
+    "lo\n"
+    "__PIDS__\n"
+    "256\n"
+    "__CPU__\n"
+    "100000 100000\n"
+    "__MEM__\n"
+    "2147483648\n"
+)
+
+
+def test_probe_parser_accepts_all_demonstrated_protections() -> None:
+    assert all(_parse_probe(_GOOD_PROBE).values())
+
+
+@pytest.mark.parametrize(
+    ("replacement", "code"),
+    [
+        ("CapEff:\t0000000000000001", "capabilities_dropped"),
+        ("NoNewPrivs:\t0", "no_new_privileges"),
+        ("Seccomp:\t0", "seccomp"),
+        ("__NET__\neth0", "no_network"),
+        ("__PIDS__\nmax", "pids_limit"),
+        ("__CPU__\nmax 100000", "resource_limits"),
+        ("__MEM__\nmax", "resource_limits"),
+    ],
+)
+def test_probe_parser_rejects_missing_protection(replacement: str, code: str) -> None:
+    original = {
+        "CapEff:\t0000000000000000": "CapEff:\t0000000000000001",
+        "NoNewPrivs:\t1": "NoNewPrivs:\t0",
+        "Seccomp:\t2": "Seccomp:\t0",
+        "__NET__\nlo": "__NET__\neth0",
+        "__PIDS__\n256": "__PIDS__\nmax",
+        "__CPU__\n100000 100000": "__CPU__\nmax 100000",
+        "__MEM__\n2147483648": "__MEM__\nmax",
+    }
+    old = next(key for key, value in original.items() if value == replacement)
+    text = _GOOD_PROBE.replace(old, replacement)
+    assert _parse_probe(text)[code] is False

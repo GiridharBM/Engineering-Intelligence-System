@@ -972,3 +972,17 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Verify:** focused `tests/test_m1_crash_recovery.py` → **4 passed**; full `uv run --locked pytest -q` → **315 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `ruff check .` → **All checks passed!**; `ruff format --check .` → **100 files already formatted**; `mypy src` → **60 source files, 0 issues**; `privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` + `verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 links, 0 broken**.
 
 **Risks / remaining:** external anchor backend, real Linux T2 evidence, branch protection, delegation and full M1 acceptance remain open; M0.2 still needs verified branch protection despite green CI.
+
+---
+
+## 2026-11-27 — OpenCode (real Linux T2 verification in hosted CI)
+
+**Status:** verified locally; hosted result appended after push
+
+**Context:** Read latest handoff, ADR-044, sandbox backend/probe, CI workflow and guard tests. No `.env`, live model calls or credentials.
+
+**Implemented:** strengthened `probe_linux_container` to require evidence from inside the container: non-root, read-only root/workspace, zero `CapEff`, `NoNewPrivs=1`, active seccomp, loopback-only network, and bounded pids/CPU/memory cgroups. Added checked-in `policies/t2-seccomp-probe.json` (probe profile) and `scripts/verify_t2_linux.py`, which exercises the real `LinuxContainerBackend` with digest-pinned `docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf`: read-only execution, disposable writable copy, output cap, timeout, cleanup, and fail-closed missing capability/mutable image. Added dedicated `t2-linux` Ubuntu job that pulls the image by digest (only network use), then runs the script. CI-workflow guard tests allow only the two non-secret `EIS_T2_*` inputs, require the job/script/digest and reject mutable tags. ADR-044, roadmap, security/threat docs, learning 07, CHANGELOG, README, wheel verification and handoff updated. The hosted probe proves runner protections at a point in time; it is not protection against a compromised runner, daemon or kernel.
+
+**Verify (local):** focused `tests/test_ci_workflow.py tests/test_t2_sandbox.py` → **23 passed**; full `pytest -q` → **323 passed, 1 skipped**; `ruff check .` → All checks passed; `ruff format --check .` → 101 files; `mypy src` → 60 files, 0 issues; `privacy: ok`; `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass (now asserts the seccomp profile); Markdown links 43 files / 248 links / 0 broken.
+
+**Risks / remaining:** real external audit-anchor retention and GitHub branch protection remain open; delegation belongs to M5; broader integration/security acceptance remains. M0.2/M1 not complete.

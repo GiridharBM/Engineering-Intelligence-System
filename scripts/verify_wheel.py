@@ -10,6 +10,7 @@ from pathlib import Path
 
 REQUIRED = (
     "eis/_resources/policies/default.json",
+    "eis/_resources/policies/t2-seccomp-probe.json",
     "eis/_resources/schemas/policy.schema.json",
     "eis/_resources/schemas/policy-decision.schema.json",
     "eis/storage/migrations/versions/0001_provider_persistence.py",
