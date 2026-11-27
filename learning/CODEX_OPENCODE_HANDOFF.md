@@ -1026,3 +1026,21 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Risks / remaining:** this is mocked CLI evidence, not real independent-retention evidence. A real deployment still needs an operator-provisioned Object Lock bucket, an explicit COMPLIANCE/GOVERNANCE choice and duration, the documented IAM permissions without `s3:BypassGovernanceRetention`, and a real `eis anchor create` + `eis anchor verify` run with independently retained evidence. Branch protection still needs GitHub admin; delegation belongs to M5; M0.2/M1 remain incomplete.
 
 **Hosted result (appended after push):** run `45992301520` for commit `ad24893` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No AWS job, credential, live AWS call or bucket was added to CI; the anchor CLI tests remain fake-sink only.
+
+---
+
+## 2026-11-27 — OpenCode (fail-closed recorded anchor reconstruction)
+
+**Status:** verified locally; hosted result appended after push
+
+**Context:** Codex review found that `_anchor_from_event` silently mapped a missing, malformed or unsupported `algorithm` to `eis-audit-anchor-v1`. Read the reconstruction, `AuditAnchorService.verify_recorded`, the `create` idempotency/retry paths and the existing anchor tests. No `.env` read, no live AWS or model call, no credential, no cloud resource.
+
+**Fix:** `_anchor_from_event` now requires `payload["algorithm"] == "eis-audit-anchor-v1"` and raises `ValueError` otherwise; there is no fallback to v1. Added `_recorded_submission`, which maps reconstruction `KeyError`/`TypeError`/`ValueError` to the existing safe `AnchorVerificationError("anchor_event_invalid")` path. `verify_recorded` uses it, and both `create` reconstruction paths (the committed-event retry and the existing-event idempotency path) use it. The existing-event path also compares the reconstructed anchor hash to the expected checkpoint before returning. `AuditIntegrityError` remains the error for an event hash mismatch or missing external version.
+
+**Tests:** added two regression tests in `tests/test_audit_anchor.py`. Each creates a valid anchor, confirms the original v1 submission verifies, rewrites the recorded anchor event's `algorithm` to either `eis-audit-anchor-v2` or removes it, recomputes that event's hash so the local chain verifies, and asserts `verify_recorded(anchor_id)` raises `AnchorVerificationError("anchor_event_invalid")`. The fake sink's verification count stays at one, proving the tampered event is rejected before any external verification. Existing v1 create/verify and idempotency tests are unchanged.
+
+**Verify (local):** anchor-focused `tests/test_audit_anchor.py tests/test_anchor_cli.py tests/test_audit_anchor_s3.py` → **51 passed**; full `pytest -q` → **365 passed, 1 skipped**; `ruff check .` → All checks passed; `ruff format --check .` → 104 files; `mypy src` → 61 files, 0 issues; `privacy: ok`; `pip-audit` → no known vulnerabilities (local `eis` skipped as not on PyPI); `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass; Markdown links 43 files / 248 links / 0 broken.
+
+**Risks / remaining:** fake-sink evidence only; no real external-retention evidence. Operator-provisioned Object Lock bucket, explicit COMPLIANCE/GOVERNANCE mode and duration, least-privilege IAM without `s3:BypassGovernanceRetention`, a real `eis anchor create`/`verify` run, and independently retained evidence remain external requirements. Branch protection still needs GitHub admin; delegation belongs to M5; M0.2/M1 remain incomplete.
+
+**Hosted result (appended after push):** pending.

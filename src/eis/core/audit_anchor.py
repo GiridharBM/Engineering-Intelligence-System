@@ -187,13 +187,15 @@ class AuditAnchorService:
         )
         existing = self._events.event_by_id(f"anchor_{anchor.anchor_id}")
         if existing is not None:
-            return _submission_from_event(existing, anchor)
+            recorded = _recorded_submission(existing)
+            if recorded.anchor.anchor_hash != anchor.anchor_hash:
+                raise AuditIntegrityError("anchor event hash mismatch")
+            return recorded
         events = self._events.events_up_to(status.event_count)
         if events and events[-1].event_type == "audit_anchor_submitted":
             # Retry immediately after a committed checkpoint: do not re-anchor
             # the event that only records the checkpoint itself.
-            recorded = events[-1]
-            return _submission_from_event(recorded, _anchor_from_event(recorded))
+            return _recorded_submission(events[-1])
         receipt = sink.submit(anchor)
         expected = compute_receipt_hash(
             anchor_hash=anchor.anchor_hash,
@@ -274,10 +276,7 @@ class AuditAnchorService:
             or event.subject_id != anchor_id
         ):
             raise AnchorVerificationError("anchor_not_found")
-        try:
-            submission = _submission_from_event(event, _anchor_from_event(event))
-        except (KeyError, TypeError, ValueError):
-            raise AnchorVerificationError("anchor_event_invalid") from None
+        submission = _recorded_submission(event)
         self.verify(submission)
         return submission
 
@@ -298,16 +297,24 @@ def _submission_from_event(event: AuditEvent, anchor: AuditAnchor) -> AnchorSubm
     return AnchorSubmission(anchor, receipt)
 
 
+def _recorded_submission(event: AuditEvent) -> AnchorSubmission:
+    try:
+        return _submission_from_event(event, _anchor_from_event(event))
+    except (KeyError, TypeError, ValueError):
+        raise AnchorVerificationError("anchor_event_invalid") from None
+
+
 def _anchor_from_event(event: AuditEvent) -> AuditAnchor:
     payload = event.payload
-    algorithm = payload.get("algorithm")
+    if payload.get("algorithm") != ALGORITHM:
+        raise ValueError("unsupported anchor algorithm")
     return AuditAnchor(
         anchor_id=event.subject_id.removeprefix("anchor_"),
         up_to_seq=int(str(payload["up_to_seq"])),
         head_hash=str(payload["head_hash"]),
         created_at_ms=int(str(payload["created_at_ms"])),
         anchor_hash=str(payload["anchor_hash"]),
-        algorithm=algorithm if algorithm == ALGORITHM else ALGORITHM,
+        algorithm=ALGORITHM,
     )
 
 

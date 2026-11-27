@@ -18,7 +18,13 @@ from eis.core.audit_anchor import (
     AuditAnchorService,
     compute_receipt_hash,
 )
-from eis.core.audit_chain import AuditEvent, AuditIntegrityError, verify_chain
+from eis.core.audit_chain import (
+    AuditEvent,
+    AuditIntegrityError,
+    canonical_event_json,
+    compute_event_hash,
+    verify_chain,
+)
 from eis.storage.audit_chain import AuditChainStore
 from eis.storage.db import SqliteDatabase
 
@@ -287,3 +293,61 @@ def test_no_external_backend_fails_closed(tmp_path: Path) -> None:
         no_backend.create(actor="test")
     with pytest.raises(AnchorUnavailable):
         no_backend.verify(submission)
+
+
+def _rewrite_anchor_event(
+    store: AuditChainStore,
+    *,
+    updates: dict[str, object] | None = None,
+    remove: str | None = None,
+) -> None:
+    """Change the recorded anchor payload and keep the local chain valid."""
+    events = list(store.events_up_to(store.status().event_count))
+    recorded = next(event for event in events if event.event_type == "audit_anchor_submitted")
+    payload = dict(recorded.payload)
+    if remove is not None:
+        payload.pop(remove, None)
+    if updates:
+        payload.update(updates)
+    tampered = replace(recorded, payload=payload, event_hash="")
+    tampered = replace(
+        tampered,
+        event_hash=compute_event_hash(tampered.prev_hash, tampered.canonical_body()),
+    )
+    with store.database.connect() as connection:
+        connection.execute("DROP TRIGGER IF EXISTS audit_no_update")
+        connection.execute(
+            "UPDATE audit_events SET payload_json = ?, hash = ? WHERE seq = ?",
+            (canonical_event_json(payload), tampered.event_hash, recorded.seq),
+        )
+    assert store.status().ok
+
+
+def test_verify_recorded_rejects_unsupported_algorithm_after_rehash(tmp_path: Path) -> None:
+    _, store = _chain(tmp_path)
+    sink = FakeExternalAnchorSink.create()
+    service = AuditAnchorService(events=store, sink=sink)
+    submission = service.create(actor="test")
+    assert service.verify(submission) is True
+    assert sink.verifications == 1
+
+    _rewrite_anchor_event(store, updates={"algorithm": "eis-audit-anchor-v2"})
+
+    with pytest.raises(AnchorVerificationError, match="anchor_event_invalid"):
+        service.verify_recorded(submission.anchor.anchor_id)
+    assert sink.verifications == 1  # rejected before any external verification
+
+
+def test_verify_recorded_rejects_missing_algorithm_after_rehash(tmp_path: Path) -> None:
+    _, store = _chain(tmp_path)
+    sink = FakeExternalAnchorSink.create()
+    service = AuditAnchorService(events=store, sink=sink)
+    submission = service.create(actor="test")
+    assert service.verify(submission) is True
+    assert sink.verifications == 1
+
+    _rewrite_anchor_event(store, remove="algorithm")
+
+    with pytest.raises(AnchorVerificationError, match="anchor_event_invalid"):
+        service.verify_recorded(submission.anchor.anchor_id)
+    assert sink.verifications == 1  # rejected before any external verification

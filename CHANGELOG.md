@@ -6,6 +6,8 @@ All notable changes to EIS are documented here. Format follows [Keep a Changelog
 
 ### Fixed
 
+- **Fail-closed recorded anchor reconstruction:** `_anchor_from_event` now rejects a missing, malformed or unsupported `algorithm` instead of silently reinterpreting it as `eis-audit-anchor-v1`. `verify_recorded` and the `create` retry/idempotency paths route reconstruction errors through the existing safe `anchor_event_invalid` path before any external verification. Added regression tests that rehash a tampered anchor event and confirm an unknown or missing algorithm is rejected without a sink call; successful v1 create/verify is unchanged.
+
 - CI typecheck portability: replaced direct `subprocess.CREATE_NEW_PROCESS_GROUP` and `signal.CTRL_BREAK_EVENT` references with `getattr(..., default)`, so Ubuntu Mypy no longer requires Windows-only names while preserving Windows process-group behavior; no Mypy checks were weakened.
 
 - **M1 CLI consumed-approval digest fix:** `eis approval execute` now validates the supplied digest with `hmac.compare_digest` against `record.request_digest` before any consumed-approval recovery. Wrong digests exit `digest_mismatch` without completing a task, triggering `execution_unverified`, or changing execution-run counts; correct-digest recovery remains idempotent. Added CLI regression tests for wrong digest with/without successful evidence and correct-digest retry.
