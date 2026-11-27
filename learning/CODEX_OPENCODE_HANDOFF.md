@@ -926,3 +926,5 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Verify:** `uv run --locked pytest -q` → **301 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `uv run --locked ruff check .` → **All checks passed!**; `uv run --locked ruff format --check .` → **97 files already formatted**; `uv run --locked mypy src` → **59 source files, 0 issues**; `uv run --locked eis privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` → built; `uv run --locked python scripts/verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**.
 
 **Risks / remaining:** no configured/real independently controlled external anchor backend; no external retention evidence; branch protection unverified; no real Linux T2 container evidence; delegation and broader recovery not implemented; M0.2 not complete without verified branch protection despite green CI; M1 not complete without all acceptance criteria.
+
+**Follow-up CI result:** full workflow run `45962384940` for commit `7608b1a` reached **`conclusion=success`** (`status=completed`), not merely individual jobs passing.
