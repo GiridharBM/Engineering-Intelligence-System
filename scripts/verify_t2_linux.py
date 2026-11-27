@@ -23,6 +23,7 @@ from eis.core.sandbox import (
     LinuxContainerBackend,
     SandboxError,
     SandboxRequest,
+    SandboxResult,
     probe_linux_container,
 )
 
@@ -48,6 +49,14 @@ def _request(
         timeout_seconds=int(kwargs.get("timeout_seconds", 10)),
         output_cap_bytes=int(kwargs.get("output_cap_bytes", 4096)),
         writable_copy=writable,
+    )
+
+
+def _describe(result: SandboxResult) -> str:
+    return (
+        f"status={result.status} error={result.error_code} "
+        f"truncated={result.truncated} timed_out={result.timed_out} "
+        f"stdout={result.stdout[:200]!r} stderr={result.stderr[:200]!r}"
     )
 
 
@@ -113,6 +122,9 @@ def main() -> int:
     backend = LinuxContainerBackend(engine="docker", image=image, seccomp_profile=seccomp)
     with tempfile.TemporaryDirectory(prefix="eis-t2-hosted-") as scratch:
         root = Path(scratch)
+        # copytree preserves this mode on the mounted copy; the container runs
+        # as uid 10001, so a private (0700) fixture would be unreadable there.
+        root.chmod(0o777)
         (root / "fixture.txt").write_text(FIXTURE_TEXT, encoding="utf-8")
         ok = backend.run(
             _request(
@@ -121,7 +133,7 @@ def main() -> int:
             )
         )
         if ok.status != "success" or b"10001" not in ok.stdout:
-            raise SystemExit("read-only T2 execution did not run as non-root")
+            raise SystemExit(f"read-only T2 execution did not run as non-root: {_describe(ok)}")
         if FIXTURE_TEXT.encode() not in ok.stdout:
             raise SystemExit("disposable project mount did not contain the fixture")
         print("run_read_only=success")
@@ -130,12 +142,12 @@ def main() -> int:
             _request(root, ("/bin/sh", "-c", "printf 1234567890"), output_cap_bytes=4)
         )
         if not truncated.truncated or truncated.status != "failed":
-            raise SystemExit("output cap was not enforced")
+            raise SystemExit(f"output cap was not enforced: {_describe(truncated)}")
         print("run_output_cap=enforced")
 
         timed_out = backend.run(_request(root, ("/bin/sh", "-c", "sleep 10"), timeout_seconds=1))
         if not timed_out.timed_out or timed_out.status != "failed":
-            raise SystemExit("timeout was not enforced")
+            raise SystemExit(f"timeout was not enforced: {_describe(timed_out)}")
         print("run_timeout=enforced")
 
         writable = backend.run(
@@ -146,7 +158,9 @@ def main() -> int:
             )
         )
         if writable.status != "success" or b"t2-only" not in writable.stdout:
-            raise SystemExit("writable disposable copy did not accept the probe write")
+            raise SystemExit(
+                f"writable disposable copy did not accept the probe write: {_describe(writable)}"
+            )
         if (root / "marker.txt").exists():
             raise SystemExit("writable probe modified the host fixture")
         if (root / "fixture.txt").read_text(encoding="utf-8") != FIXTURE_TEXT:
@@ -161,7 +175,7 @@ def main() -> int:
         raise SystemExit("missing seccomp profile was accepted")
     refused = missing.run(_request(root, ("/bin/sh", "-c", "id")))
     if refused.status != "unavailable" or refused.error_code != "isolation_unavailable":
-        raise SystemExit("missing capability did not fail closed")
+        raise SystemExit(f"missing capability did not fail closed: {_describe(refused)}")
     print("fail_closed_missing_capability=ok")
 
     try:
