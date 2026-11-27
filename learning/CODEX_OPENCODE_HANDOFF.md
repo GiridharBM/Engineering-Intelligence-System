@@ -1115,4 +1115,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Operator/admin requirements:** the operator must provision/designate an S3 general purpose bucket with Versioning + Object Lock, choose COMPLIANCE or GOVERNANCE and an explicit duration, grant the documented least-privilege IAM actions without `s3:BypassGovernanceRetention`, run `eis anchor status/create/verify`, and independently retain evidence. A GitHub admin must configure and verify branch protection. T2 evidence is hosted point-in-time runner evidence, not protection against a compromised runner/kernel.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `46011760687` for commit `4aeb585` reached `status=completed`, **`conclusion=success`**: all **13/13 jobs** passed, including `Serve loopback smoke (real process)` and `T2 Linux container (real backend)`. No real credential, provider/AWS call or cloud resource was used.
