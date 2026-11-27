@@ -958,3 +958,17 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Verify:** focused `tests/test_m1_crash_recovery.py tests/test_task_cancellation_review.py` → **10 passed**; full `uv run --locked pytest -q` → **312 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `ruff check .` → **All checks passed!**; `ruff format --check .` → **100 files already formatted**; `mypy src` → **60 source files, 0 issues**; `privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` + `verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**.
 
 **Risks / remaining:** external anchor backend, real Linux T2 evidence, branch protection, delegation, broader recovery and full M1 acceptance remain unverified/incomplete; M0.2 still needs verified branch protection despite green CI.
+
+---
+
+## 2026-11-27 — OpenCode (CLI consumed-approval digest validation fix)
+
+**Status:** verified
+
+**Context:** Codex review identified that `eis approval execute` consumed-approval recovery did not validate the supplied digest before completing or failing linked state. Inspected `src/eis/cli.py`, API retry path (unchanged), approval store and recovery tests. No `.env`, live model calls or credential output.
+
+**Fix:** in the `record.status == "consumed"` branch, validate the digest format and compare it to `record.request_digest` with `hmac.compare_digest` before any recovery action. Wrong digest exits `execution_error: digest_mismatch` without touching task/plan/step or `execution_runs`, whether successful evidence exists or not. Correct digest retains idempotent completion from successful evidence and fail-closed `execution_unverified` when evidence is absent; no write is repeated. API retry behavior unchanged (already digest-bound). Added CLI regression tests in `tests/test_m1_crash_recovery.py`: wrong digest with evidence, wrong digest without evidence (asserts no `execution_unverified`) and correct-digest idempotent retry. Updated CHANGELOG, README, roadmap, handoff append-only.
+
+**Verify:** focused `tests/test_m1_crash_recovery.py` → **4 passed**; full `uv run --locked pytest -q` → **315 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `ruff check .` → **All checks passed!**; `ruff format --check .` → **100 files already formatted**; `mypy src` → **60 source files, 0 issues**; `privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` + `verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 links, 0 broken**.
+
+**Risks / remaining:** external anchor backend, real Linux T2 evidence, branch protection, delegation and full M1 acceptance remain open; M0.2 still needs verified branch protection despite green CI.

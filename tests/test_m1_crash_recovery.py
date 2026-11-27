@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from eis.adapters.models.base import CompletionRequest, CompletionResponse, TokenUsage
+from eis.cli import app
 from eis.config import ConsentRecord
 from eis.core.audit_chain import AuditIntegrityError
 from eis.core.consent import ConsentGate
@@ -241,3 +243,110 @@ def _digest(fx: _ApprovalFx) -> str:
     record = fx.approvals.get(fx.approval_id)
     assert record is not None
     return record.request_digest
+
+
+def _cli(fx: _ApprovalFx, monkeypatch: pytest.MonkeyPatch) -> CliRunner:
+    monkeypatch.setattr("eis.cli._session_store", lambda: fx.sessions)
+    monkeypatch.setattr("eis.cli.default_database", lambda settings: fx.database)
+    return CliRunner()
+
+
+def _snapshot(fx: _ApprovalFx) -> tuple[object, ...]:
+    task = fx.sessions.get_task(fx.task_id)
+    plan = fx.plans.get_plan_for_task(fx.task_id)
+    steps = fx.plans.list_steps(plan.plan_id) if plan is not None else ()
+    write_step = next((item for item in steps if item.tool == WRITE_PROPOSAL_TOOL), None)
+    runs = (
+        fx.database.connect()
+        .execute("SELECT COUNT(*) FROM execution_runs WHERE approval_id = ?", (fx.approval_id,))
+        .fetchone()[0]
+    )
+    return (
+        task.state if task else None,
+        task.stop_reason if task else None,
+        plan.state if plan else None,
+        plan.stop_reason if plan else None,
+        write_step.status if write_step else None,
+        write_step.error_code if write_step else None,
+        runs,
+    )
+
+
+def _wrong_digest(correct: str) -> str:
+    return ("0" if correct[0] != "0" else "1") * 64
+
+
+def test_cli_wrong_digest_with_successful_evidence_leaves_state_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _approval_fixture(tmp_path, monkeypatch)
+    digest = _digest(fx)
+    fx.approvals.decide(fx.approval_id, grant=True, confirmed_digest=digest)
+    assert _gateway(fx).execute_write(fx.approval_id, confirmed_digest=digest).status == "success"
+    before = _snapshot(fx)
+
+    result = _cli(fx, monkeypatch).invoke(
+        app,
+        ["approval", "execute", fx.approval_id, "--digest", _wrong_digest(digest), str(fx.root)],
+    )
+
+    assert result.exit_code == 1
+    assert "digest_mismatch" in result.output
+    assert _snapshot(fx) == before
+    assert fx.target.read_text(encoding="utf-8") == NEW_CONTENT
+
+
+def test_cli_wrong_digest_does_not_trigger_execution_unverified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _approval_fixture(tmp_path, monkeypatch)
+    digest = _digest(fx)
+    fx.approvals.decide(fx.approval_id, grant=True, confirmed_digest=digest)
+
+    def no_evidence(*args: object, **kwargs: object) -> object:
+        raise AuditIntegrityError("evidence write failed")
+
+    monkeypatch.setattr(ApprovalStore, "record_execution", no_evidence)
+    with pytest.raises(AuditIntegrityError):
+        _gateway(fx).execute_write(fx.approval_id, confirmed_digest=digest)
+    before = _snapshot(fx)
+
+    result = _cli(fx, monkeypatch).invoke(
+        app,
+        ["approval", "execute", fx.approval_id, "--digest", _wrong_digest(digest), str(fx.root)],
+    )
+
+    assert result.exit_code == 1
+    assert "digest_mismatch" in result.output
+    assert "execution_unverified" not in result.output
+    assert _snapshot(fx) == before
+    assert fx.target.read_text(encoding="utf-8") == NEW_CONTENT
+    events = [
+        row[0] for row in fx.database.connect().execute("SELECT event_type FROM audit_events")
+    ]
+    assert "task_approval_execution_unverified" not in events
+
+
+def test_cli_correct_digest_retry_is_idempotent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _approval_fixture(tmp_path, monkeypatch)
+    digest = _digest(fx)
+    fx.approvals.decide(fx.approval_id, grant=True, confirmed_digest=digest)
+    assert _gateway(fx).execute_write(fx.approval_id, confirmed_digest=digest).status == "success"
+    runner = _cli(fx, monkeypatch)
+
+    first = runner.invoke(
+        app, ["approval", "execute", fx.approval_id, "--digest", digest, str(fx.root)]
+    )
+    assert first.exit_code == 0, first.output
+    assert "status=already_executed" in first.output
+    assert "task_state=completed" in first.output
+
+    second = runner.invoke(
+        app, ["approval", "execute", fx.approval_id, "--digest", digest, str(fx.root)]
+    )
+    assert second.exit_code == 0, second.output
+    assert "status=already_executed" in second.output
+    assert _snapshot(fx)[-1] == 1
+    assert fx.target.read_text(encoding="utf-8") == NEW_CONTENT

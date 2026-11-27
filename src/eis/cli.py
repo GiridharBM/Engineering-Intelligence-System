@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import importlib
 import platform
+import re
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -968,6 +970,11 @@ def approval_execute(
         typer.echo("approval_error: not found", err=True)
         raise typer.Exit(1)
     if record.status == "consumed":
+        if not re.fullmatch(r"[0-9a-f]{64}", digest) or not hmac.compare_digest(
+            digest, record.request_digest
+        ):
+            typer.echo("execution_error: digest_mismatch", err=True)
+            raise typer.Exit(1)
         if record.task_id is None:
             typer.echo("execution_error: approval was already consumed", err=True)
             raise typer.Exit(1)
