@@ -962,13 +962,25 @@ def approval_execute(
 ) -> None:
     """Apply one already approved write after rechecking policy and file hashes."""
     sessions = _session_store()
-    record = ApprovalStore(default_database(load_settings(require_provider=False))).get(approval_id)
+    approvals = ApprovalStore(default_database(load_settings(require_provider=False)))
+    record = approvals.get(approval_id)
     if record is None:
         typer.echo("approval_error: not found", err=True)
         raise typer.Exit(1)
     if record.status == "consumed":
         if record.task_id is None:
             typer.echo("execution_error: approval was already consumed", err=True)
+            raise typer.Exit(1)
+        if approvals.successful_execution(approval_id) is None:
+            if record.task_id is not None:
+                try:
+                    sessions.fail_task_after_approval_without_evidence(
+                        record.task_id, approval_id, actor="cli"
+                    )
+                except RuntimeStateError as exc:
+                    typer.echo(f"execution_error: {exc}", err=True)
+                    raise typer.Exit(1) from exc
+            typer.echo("execution_error: approval_execution_unverified", err=True)
             raise typer.Exit(1)
         try:
             already_completed = sessions.complete_task_after_approval(record.task_id, approval_id)

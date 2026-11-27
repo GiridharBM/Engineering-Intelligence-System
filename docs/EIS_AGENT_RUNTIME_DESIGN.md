@@ -233,6 +233,8 @@ Limits are enforced by `LimitEnforcer` before dispatch, not by prompt instructio
 
 **ADR-047 (cancellation + human review).** `cancel_task` requires `task.cancel`, is atomic across task/plan/steps plus chained events, never rewinds completed work, refuses `approval_required`, and refuses when successful `execution_runs` evidence exists. `pending -> skipped`, `running -> failed` `cancelled`, blocked `human_review -> skipped`; task/plan `cancelled` terminal. `continue_plan_review(task_id, step_ref)` validates strict `step_ref`, rechecks policy/session/project/policy hash/root, completes `human_review`, moves blocked->running, and runs only unexecuted ready steps; it grants no permission and never approves a write. `approval_required` remains digest-bound (ADR-046).
 
+**ADR-049 (consumed-approval recovery).** A consumed approval with no successful `execution_runs` row is terminal `execution_unverified`; it is never retried, completed or cancelled. CLI/API retries reconcile successful executions idempotently; read-only in-flight steps may be explicitly retried once; all recovery rechecks policy/session/root/audit integrity.
+
 ## 10. Cancellation and Shutdown
 
 Cancellation is cooperative: no new step starts; a running tool receives a termination signal in T1/T2; partial output is preserved as evidence. Shutdown drains in-flight steps for up to 30 s, checkpoints, releases leases and closes the database cleanly.

@@ -595,8 +595,14 @@ def create_app(
                 if payload.digest != record.request_digest:
                     raise ApprovalError("confirmed digest does not match approval")
                 run = approvals.successful_execution(approval_id)
-                if run is None or record.task_id is None:
-                    raise ApprovalError("no durable successful execution evidence")
+                if run is None:
+                    if record.task_id is not None:
+                        sessions.fail_task_after_approval_without_evidence(
+                            record.task_id, approval_id, actor="api_user"
+                        )
+                    raise HTTPException(status_code=409, detail="approval_execution_unverified")
+                if record.task_id is None:
+                    raise ApprovalError("no linked task for the recorded execution")
                 recovered_task = sessions.complete_task_after_approval(
                     record.task_id, approval_id, actor="api_user"
                 )

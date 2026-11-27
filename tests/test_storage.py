@@ -132,7 +132,7 @@ def test_migration_creates_expected_tables_and_pragmas(tmp_path: Path) -> None:
             "task_plan_step_attempt_guard",
         } <= triggers
         version = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-        assert version[0] == "0009_task_cancellation_review"
+        assert version[0] == "0010_approval_execution_recovery"
         columns = {row[1] for row in connection.execute("PRAGMA table_info(task_plan_steps)")}
         assert {"arguments_json", "attempt_count"} <= columns
 

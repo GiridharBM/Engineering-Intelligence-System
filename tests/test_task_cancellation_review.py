@@ -16,6 +16,7 @@ from eis.config import ConsentRecord
 from eis.core.audit_chain import AuditIntegrityError
 from eis.core.consent import ConsentGate
 from eis.core.model_gateway import ModelGateway
+from eis.core.model_plan import PlanStep
 from eis.core.policy_service import PolicyService
 from eis.core.project_tools import ReadOnlyProjectTools, ToolCall
 from eis.core.runtime import RuntimeStateError, SessionTaskRuntime
@@ -385,3 +386,84 @@ def test_cancellation_on_created_task_and_audit_failure(
     with pytest.raises(AuditIntegrityError):
         fx2.runtime.cancel_task(task2.task_id, actor="user")
     assert fx2.sessions.get_task(task2.task_id).state == "created"  # type: ignore[union-attr]
+
+
+def _running_read_only_plan(fx):
+    session = fx.runtime.create_session(title="recovery", project_id=ROOT_ID)
+    task = fx.runtime.create_task(session.session_id, GOAL)
+    fx.sessions.transition_task(task.task_id, expected_state="created", new_state="running")
+    plan = fx.plans.create_plan(
+        task_id=task.task_id,
+        project_id=ROOT_ID,
+        policy_version=fx.runtime._policy.policy_version,  # type: ignore[attr-defined]
+        policy_hash=fx.runtime._policy.policy_hash,  # type: ignore[attr-defined]
+        plan_hash="a" * 64,
+        steps=[
+            PlanStep(
+                id="read",
+                tool="project.read_text",
+                arguments={"path": "app.py"},
+                depends_on=(),
+            )
+        ],
+        actor="test",
+    )
+    plan = fx.plans.transition_plan(plan.plan_id, expected_state="created", new_state="running")
+    step = fx.plans.list_steps(plan.plan_id)[0]
+    fx.plans.transition_step(step.step_id, expected_status="pending", new_status="running")
+    return task, plan, step
+
+
+def test_audit_failure_during_read_only_recovery_rolls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _fx(tmp_path)
+    task, plan, step = _running_read_only_plan(fx)
+    monkeypatch.setattr(
+        fx.plans._chain,
+        "append_in",
+        lambda *a, **k: (_ for _ in ()).throw(AuditIntegrityError("audit down")),
+    )
+    with pytest.raises(AuditIntegrityError):
+        asyncio.run(fx.runtime.resume_plan(task.task_id))
+    assert fx.plans.get_plan(plan.plan_id).state == "running"  # type: ignore[union-attr]
+    assert fx.plans.list_steps(plan.plan_id)[0].status == "running"
+    assert fx.provider.calls == 0
+
+    monkeypatch.undo()
+    outcome = asyncio.run(fx.runtime.resume_plan(task.task_id))
+    assert outcome.task.state == "completed"
+    assert outcome.steps[0].status == "completed"
+    assert fx.provider.calls == 0
+    # Repeating explicit resume is a no-op with no duplicate side effect.
+    again = asyncio.run(fx.runtime.resume_plan(task.task_id))
+    assert again.task.state == "completed"
+    assert fx.provider.calls == 0
+
+
+def test_stale_policy_and_root_fail_closed_on_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _fx(tmp_path / "policy")
+    task, plan, step = _running_read_only_plan(fx)
+    monkeypatch.setattr(
+        fx.runtime,
+        "_policy",
+        PolicyService(
+            PolicyEngine(_policy(allow_cancel=False)), SqlitePolicyDecisionSink(fx.database)
+        ),
+    )
+    outcome = asyncio.run(fx.runtime.resume_plan(task.task_id))
+    assert outcome.task.state == "failed"
+    assert outcome.task.stop_reason == "policy_changed"
+    assert fx.plans.get_plan(plan.plan_id).state == "failed"  # type: ignore[union-attr]
+    assert fx.provider.calls == 0
+
+    fx2 = _fx(tmp_path / "root")
+    task2, plan2, step2 = _running_read_only_plan(fx2)
+    ProjectRootStore(fx2.database).remove(ROOT_ID, actor="test")
+    outcome2 = asyncio.run(fx2.runtime.resume_plan(task2.task_id))
+    assert outcome2.task.state == "failed"
+    assert outcome2.task.stop_reason == "project_root_unavailable"
+    assert fx2.plans.get_plan(plan2.plan_id).state == "failed"  # type: ignore[union-attr]
+    assert fx2.provider.calls == 0

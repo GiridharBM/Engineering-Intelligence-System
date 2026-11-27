@@ -940,3 +940,21 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Implemented:** `GET /api/v1/audit/events` requires the local bearer token and rejects unknown/repeated query fields (422). Only `limit` (1–100, default 50) and opaque `cursor` are accepted. Response items contain only `seq`, `occurred_at_ms`, `event_type`, `actor`, `subject_type`, `subject_id`, `decision`, `prev_hash`, `event_hash`; no payloads, paths, prompts, diffs, contents or credentials. Cursor is HMAC-signed with the local token and binds `after_seq`/`head_seq`/`head_hash`; tampered/malformed cursors return 422, cursors past the chain 409. Paging is stable while events are appended because the bound prefix is re-verified. Full chain status and requested prefix are verified on every page; corruption returns 503 and no page. Integrity status is included in every response. Added `tests/test_api_audit_events.py` (8 tests): auth, strict query/cursor validation, empty history, safe metadata, stable paging, tampered/stale cursor, corrupted full chain and corrupted prefix. API spec, roadmap, changelog, learning 03, README updated; old handoff entries not rewritten.
 
 **Verify:** focused `pytest -q tests/test_api_audit_events.py` → **8 passed**; full `uv run --locked pytest -q` → **309 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `uv run --locked ruff check .` → **All checks passed!**; `uv run --locked ruff format --check .` → **98 files already formatted**; `uv run --locked mypy src` → **59 source files, 0 issues**; `uv run --locked eis privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` → built; `uv run --locked python scripts/verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**. External anchor backend remains interface-only; T2 Linux evidence, delegation, branch protection and full M1 acceptance remain open.
+
+---
+
+## 2026-11-27 — OpenCode (fail-closed crash recovery; ADR-049)
+
+**Status:** verified
+
+**Context:** Read latest handoff, M1 roadmap, API spec, runtime/plan/approval/execution/audit/recovery code. No `.env`, live model calls, credentials or payload exposure.
+
+**API correction:** removed stale “audit event browsing remains planned” from `docs/EIS_API_SPECIFICATION.md`; `GET /api/v1/audit/events` is implemented and authenticated.
+
+**Durable boundary map:** task/plan creation and approval wait are atomic with chained events; read-only in-flight steps may be explicitly retried once (ADR-045); write proposals bind task/approval digest and block atomically (ADR-046); execution consumes single-use approval before writing and only a successful `execution_runs` row permits completion; consumed approval without success evidence was a stranded boundary. API/CLI retries now reconcile successful evidence idempotently, and a consumed approval with no success evidence fails closed as `execution_unverified` (ADR-049, migration `0010`). No auto-resume after restart; stale policy/root and audit failures fail closed; no write is repeated and no task is completed/cancelled without matching evidence.
+
+**Fault tests:** `tests/test_m1_crash_recovery.py` covers file side effect before evidence persistence, terminal `execution_unverified`, repeated no-op recovery, no duplicate write, and no content in audit payloads. `tests/test_task_cancellation_review.py` adds audit failure rollback during read-only recovery, repeated resume idempotence, stale policy and stale root fail-closed. No duplicate tool invocations.
+
+**Verify:** focused `tests/test_m1_crash_recovery.py tests/test_task_cancellation_review.py` → **10 passed**; full `uv run --locked pytest -q` → **312 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `ruff check .` → **All checks passed!**; `ruff format --check .` → **100 files already formatted**; `mypy src` → **60 source files, 0 issues**; `privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` + `verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**.
+
+**Risks / remaining:** external anchor backend, real Linux T2 evidence, branch protection, delegation, broader recovery and full M1 acceptance remain unverified/incomplete; M0.2 still needs verified branch protection despite green CI.

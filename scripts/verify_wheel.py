@@ -21,6 +21,7 @@ REQUIRED = (
     "eis/storage/migrations/versions/0007_plan_recovery.py",
     "eis/storage/migrations/versions/0008_task_approval_link.py",
     "eis/storage/migrations/versions/0009_task_cancellation_review.py",
+    "eis/storage/migrations/versions/0010_approval_execution_recovery.py",
     "eis/core/project_roots.py",
     "eis/core/safe_access.py",
     "eis/core/project_tools.py",

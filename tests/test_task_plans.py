@@ -301,7 +301,7 @@ def test_migration_upgrades_previous_release_without_data_loss(tmp_path: Path) -
             row[0]
             for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
         }
-    assert version == "0009_task_cancellation_review"
+    assert version == "0010_approval_execution_recovery"
     assert {"task_plans", "task_plan_steps"} <= tables
 
 

@@ -59,6 +59,7 @@ An ADR is required for any change that alters a module boundary, a persisted sch
 | ADR-046 | Bind model-proposed plan writes to human approval and execution evidence | Accepted |
 | ADR-047 | Atomic task cancellation and human-review continuation | Accepted |
 | ADR-048 | External audit-chain anchor interface | Accepted |
+| ADR-049 | Fail-closed recovery for consumed approvals | Accepted |
 
 ---
 
@@ -603,6 +604,24 @@ On Windows, T1 is **not** a security boundary and is labelled as such; untrusted
 - No real external service is integrated or verified in this slice, and no local file or DB row is described as external anchoring. Deployment requires an independently controlled backend with its own retention and verification evidence.
 
 **Consequences.** Local tail truncation after an anchored prefix is detectable if the external service retains the checkpoint; before the first anchor it remains undetectable. A sink that does not enforce independent retention or replay protection gives no security benefit. The anchor event changes the chain head, so anchors are prefixes, not the current tip. External audit anchoring remains an unverified external requirement; M1 is not complete.
+
+---
+
+## ADR-049 — Fail-closed recovery for consumed approvals
+
+**Status:** Accepted 2026-11-27.
+
+**Context.** M1 acceptance requires a task interrupted mid-run to resume without duplicate side effects. Mapping the durable boundaries showed one stranded state that prior recovery rules did not close: `ExecutionGateway.execute_write` consumes a single-use approval before writing the project file and recording `execution_runs`. A crash between the file replacement and the success row leaves the approval `consumed`, the task/plan `blocked approval_required`, and no durable execution evidence. Repeating `execute_write` is unsafe because the approval is consumed; marking the task complete or cancelled would either hide a possible write or contradict the evidence rule.
+
+**Decision.**
+- Read-only boundaries remain safe to retry explicitly: ADR-045 requeues an in-flight registered read-only step at most once after policy/session/root rechecks, and no model completion is re-sent. A completed read-only step is never repeated.
+- Write boundaries remain evidence-bound: the digest-bound approval is created before any write; the human grant/reject decision is single-use; `project.write` rechecks policy, root identity, target hash and audit integrity before consumption; completion requires `approvals.status='consumed'` plus `execution_runs.status='success'`. A successful execution is reconciled idempotently by `complete_task_after_approval` from CLI/API retry.
+- Add `SessionTaskStore.fail_task_after_approval_without_evidence(task_id, approval_id)` for a consumed linked approval with **no** successful execution row. It atomically moves the write step, plan and task to `failed` with `error_code`/`stop_reason='execution_unverified'` and appends content-free chained events. No write is attempted, no target is changed, and the terminal result is idempotent on repeated calls. CLI and API retries invoke it when they encounter this state.
+- Migration `0010_approval_execution_recovery` adds database transition guards for `execution_unverified` on task/plan/step; older migrations are unchanged. Terminal `completed` requires successful evidence; `cancelled` remains barred when successful evidence exists.
+- Recovery never auto-runs after restart. Explicit resume still rechecks policy version/hash, session, registered project root, `task.run`, audit integrity and strict step-binding. Audit failures roll back and leave states unchanged. Stale policy/root and retry-limit breaches fail closed.
+- No audit payload, CLI output or event contains file contents, approval diffs, prompts, credentials or project paths.
+
+**Consequences.** A write whose success evidence was never persisted is treated as unverified and fails the task; it is never retried and never claimed complete. This closes the stranded consumed-approval boundary without weakening approval digest or execution-evidence rules. Recovery is not general: delegation, broader step/limit recovery, external anchor backend, real Linux T2 evidence and full M1 acceptance remain open.
 
 ---
 

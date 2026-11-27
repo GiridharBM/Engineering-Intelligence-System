@@ -907,6 +907,132 @@ class SessionTaskStore:
             )
         return self._task(task_id)
 
+    def fail_task_after_approval_without_evidence(
+        self, task_id: str, approval_id: str, *, actor: str = "system"
+    ) -> TaskRecord:
+        """Fail a consumed approval whose successful execution was never recorded.
+
+        A consumed approval means a write may already have happened. It is never
+        safe to repeat it, and it is never safe to claim completion without a
+        successful ``execution_runs`` row. This is a terminal, content-free
+        reconciliation for that stranded state.
+        """
+        now = _now_ms()
+        with self._database.session(immediate=True) as connection:
+            task_row = connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if task_row is None:
+                raise RuntimeStateError("task not found")
+            task = _task_from_row(task_row)
+            if task.state == "failed" and task.stop_reason == "execution_unverified":
+                completed_approval = connection.execute(
+                    "SELECT id FROM approvals WHERE id = ? AND task_id = ?",
+                    (approval_id, task_id),
+                ).fetchone()
+                if completed_approval is not None:
+                    return task
+                raise RuntimeStateError("approval does not match the failed task")
+            if task.state not in {"running", "blocked"} or (
+                task.state == "blocked" and task.stop_reason != "approval_required"
+            ):
+                raise RuntimeStateError("task is not awaiting an approval outcome")
+            approval = connection.execute(
+                "SELECT id, status FROM approvals WHERE id = ? AND task_id = ?",
+                (approval_id, task_id),
+            ).fetchone()
+            if approval is None or approval["status"] != "consumed":
+                raise RuntimeStateError("linked approval has not been consumed")
+            successful = connection.execute(
+                "SELECT id FROM execution_runs "
+                "WHERE approval_id = ? AND status = 'success' LIMIT 1",
+                (approval_id,),
+            ).fetchone()
+            if successful is not None:
+                raise RuntimeStateError("successful execution evidence is available")
+
+            plan = connection.execute(
+                "SELECT * FROM task_plans WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if plan is not None:
+                if plan["state"] not in {"running", "blocked"} or (
+                    plan["state"] == "blocked" and plan["stop_reason"] != "approval_required"
+                ):
+                    raise RuntimeStateError("plan is not awaiting this approval outcome")
+                steps = connection.execute(
+                    "SELECT * FROM task_plan_steps WHERE plan_id = ? "
+                    "AND tool = 'project.propose_write' "
+                    "AND status IN ('pending','running','blocked') ORDER BY step_index",
+                    (plan["id"],),
+                ).fetchall()
+                for step in steps:
+                    connection.execute(
+                        "UPDATE task_plan_steps SET status = 'failed', error_code = ?, "
+                        "updated_at = ? WHERE id = ? AND status IN ('pending','running','blocked')",
+                        ("execution_unverified", now, step["id"]),
+                    )
+                    self._chain.append_in(
+                        connection,
+                        event_type="plan_step_state_changed",
+                        actor=actor,
+                        subject_type="task_plan_step",
+                        subject_id=step["id"],
+                        decision="failed",
+                        occurred_at_ms=now,
+                        payload={
+                            "plan_id": plan["id"],
+                            "step_id": step["id"],
+                            "step_index": step["step_index"],
+                            "previous_status": step["status"],
+                            "status": "failed",
+                            "tool": step["tool"],
+                            "approval_id": approval_id,
+                            "error_code": "execution_unverified",
+                        },
+                    )
+                connection.execute(
+                    "UPDATE task_plans SET state = 'failed', stop_reason = ?, updated_at = ? "
+                    "WHERE id = ? AND state IN ('running','blocked')",
+                    ("execution_unverified", now, plan["id"]),
+                )
+                self._chain.append_in(
+                    connection,
+                    event_type="plan_state_changed",
+                    actor=actor,
+                    subject_type="task_plan",
+                    subject_id=plan["id"],
+                    decision="failed",
+                    occurred_at_ms=now,
+                    payload={
+                        "plan_id": plan["id"],
+                        "task_id": task_id,
+                        "previous_state": plan["state"],
+                        "state": "failed",
+                        "stop_reason": "execution_unverified",
+                    },
+                )
+            cursor = connection.execute(
+                "UPDATE tasks SET state = 'failed', stop_reason = ?, ended_at = ? "
+                "WHERE id = ? AND state IN ('running','blocked')",
+                ("execution_unverified", now, task_id),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeStateError("task state changed; reload and retry")
+            self._chain.append_in(
+                connection,
+                event_type="task_approval_execution_unverified",
+                actor=actor,
+                subject_type="task",
+                subject_id=task_id,
+                decision="failed",
+                occurred_at_ms=now,
+                payload={
+                    "task_id": task_id,
+                    "approval_id": approval_id,
+                    "state": "failed",
+                    "stop_reason": "execution_unverified",
+                },
+            )
+        return self._task(task_id)
+
     def cancel_task(self, task_id: str, *, actor: str = "user") -> TaskRecord:
         """Atomically cancel a task, its plan and unexecuted steps; never undo writes."""
         now = _now_ms()
