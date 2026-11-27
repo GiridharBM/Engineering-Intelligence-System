@@ -1077,4 +1077,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Limits / risks:** pattern rules remain best-effort, not complete DLP; unterminated PEM handling necessarily redacts everything after the marker, including any ordinary prose that follows it. No live provider/AWS evidence was produced. Real S3 Object Lock retention evidence, GitHub branch protection and delegation (M5) remain external requirements; M0.2/M1 remain incomplete.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `46003114570` for commit `7df8a35` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No real key, `.env`, provider/AWS call or cloud resource was used; tests remain synthetic/source-level only.
