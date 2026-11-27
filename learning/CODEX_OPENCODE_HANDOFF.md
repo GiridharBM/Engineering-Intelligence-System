@@ -1078,3 +1078,21 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Limits / risks:** pattern rules remain best-effort, not complete DLP; unterminated PEM handling necessarily redacts everything after the marker, including any ordinary prose that follows it. No live provider/AWS evidence was produced. Real S3 Object Lock retention evidence, GitHub branch protection and delegation (M5) remain external requirements; M0.2/M1 remain incomplete.
 
 **Hosted result (appended after push):** run `46003114570` for commit `7df8a35` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No real key, `.env`, provider/AWS call or cloud resource was used; tests remain synthetic/source-level only.
+
+---
+
+## 2026-11-27 — OpenCode (process-level loopback serve smoke)
+
+**Status:** verified locally, including a real Windows loopback run; hosted Ubuntu result appended after push
+
+**Context:** Read the latest handoff, M1 roadmap, API specification and the `eis serve` implementation. Added a bounded process harness and a dedicated hosted Ubuntu job; no `.env` read, no live provider or AWS call, no credential printed and no cloud resource.
+
+**Implemented:** `tests/test_serve_smoke.py` launches the real `python -m eis serve` subprocess on `127.0.0.1` with temporary data/config directories, `EIS_DISABLE_DOTENV=1`, a per-test token and all model-provider/AWS environment variables removed. It waits for readiness with bounded timeouts, verifies public `/health`, verifies 401 without a bearer token and 200 on `GET /api/v1/sessions` with the token, always terminates/reaps the child in `finally`, and prints only safe status evidence. Deterministic tests cover startup failure, readiness timeout, HTTP failure without token leakage, authentication-header construction, non-loopback `0.0.0.0` rejection with exit code 2, and explicit stop/reap. Added a `serve-smoke` Ubuntu CI job with `EIS_SERVE_SMOKE=1`; the general test matrix keeps the real smoke skipped and continues to run the existing TestClient contracts. Updated the CI workflow guard, API spec, roadmap, README, changelog and learning guides 03/09.
+
+**Process-level evidence (local Windows loopback):** direct invocation of the real smoke printed `serve_smoke=ok health=200 unauth=401 auth=200 cleanup=ok`; the token was generated into the temporary config directory, held in memory and never printed. This was a local sanity check; the hosted Ubuntu `serve-smoke` job is the authoritative Linux process-level evidence.
+
+**Verify (local):** `tests/test_serve_smoke.py` → **6 passed, 1 skipped** (real smoke gated); full `pytest -q` → **390 passed, 2 skipped** (POSIX-only and gated real-smoke); `ruff check .` → All checks passed; `ruff format --check .` → 105 files; `mypy src` → 61 files, 0 issues; `privacy: ok`; `pip-audit` → no known vulnerabilities (local `eis` skipped as not on PyPI); `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass; Markdown links 43 files / 248 links / 0 broken.
+
+**Limits / risks:** the smoke verifies `/health` and one authenticated read-only route, not every API route; SSE and the wider API remain planned. No live provider/AWS evidence was produced. Real S3 Object Lock retention evidence, GitHub branch protection and delegation (M5) remain operator/admin requirements; M0.2/M1 remain incomplete.
+
+**Hosted result (appended after push):** pending.

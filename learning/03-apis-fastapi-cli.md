@@ -197,7 +197,7 @@ Secrets do not belong in configuration files. Provider keys come from environmen
 | Feature | Status |
 |---|---|
 | FastAPI app factory, public `/health` and `/api/v1/meta` | Implemented |
-| Local bearer token, loopback `eis serve`, authenticated session/task routes | Implemented (M1 subset) |
+| Local bearer token, loopback `eis serve`, authenticated session/task routes | Implemented (M1 subset); real process-level loopback smoke runs in hosted Ubuntu CI |
 | `eis ask --fake` deterministic smoke task | Implemented; requires explicit allow policy to run |
 | Pydantic response models and generated OpenAPI | Implemented |
 | Typer CLI commands | Implemented |

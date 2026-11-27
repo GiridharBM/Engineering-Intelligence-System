@@ -115,7 +115,7 @@ The design uses a modular monolith, not microservices:
 
 | Process | Command | Responsibility |
 |---|---|---|
-| API | `eis serve` (planned) | HTTP, SSE, short interactive work |
+| API | `eis serve` (implemented, loopback) | HTTP API and short interactive work; SSE planned |
 | Worker | `eis worker` (planned) | Durable jobs, scans, verification |
 | CLI | `eis <command>` | In-process application services |
 | Frontend | static build (planned) | Dashboard only |
