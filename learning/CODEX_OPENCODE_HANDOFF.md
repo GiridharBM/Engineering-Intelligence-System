@@ -883,3 +883,22 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Status:** blocked
 
 **Notes:** Pushed `main` to `https://github.com/GiridharBM/Engineering-Intelligence-System`. Commit `2ba8404` CI run `45956728610` completed **failure**. `lint`, `package`, `privacy`, 8/8 test jobs passed; `typecheck` failed on `uv run --locked mypy src` (not reproducible locally on Windows; local `uv run --locked mypy src` → `Success: no issues found in 58 source files`); `security` failed on `gitleaks/gitleaks-action` `Leaks detected`. Full job logs require admin; `gh` CLI absent. Branch-protection endpoint returned **401** without auth; branch protection cannot be verified/configured here. No `.env`, provider call, or secret disclosure.
+
+---
+
+## 2026-11-27 — OpenCode (CI blocker diagnosis + portability fix; ADR-047 status correction)
+
+**Status:** verified
+
+**Context:** Read handoff, roadmap M0.2/M1, latest CI evidence; inspected `ExecutionGateway`, `CommandProfile`, process cleanup, `_terminate_process`, migration state, Git `main`, origin. Re-checked hosted run `45956728610` (`security` job `140364814927`, `typecheck` job `140364814729`) and later `45957327115`. No `.env`, live model calls, secret output, weakening of Mypy/Gitleaks.
+
+**Priority 1 — CI blockers:**
+- **Gitleaks.** Old `security` job failed on `gitleaks/gitleaks-action@dcedce43...` with `Leaks detected`. Hosted full job logs endpoint returned **403 `Must have admin rights to Repository`**; `gh` CLI is **not installed**; no `gitleaks` binary; no `.gitleaks.toml`. Exact old finding could **not** be retrieved and is **not claimed**. No real credential was printed or added; no broad allowlist/suppression; `.env` not tracked/read; local `eis privacy-check` → `privacy: ok`; `git ls-files` shows no `.env`. On retry run `45958458885`, `gitleaks-action` succeeded and `security` (`pip-audit`) succeeded. No history rewrite/revocation performed; if a real credential were identified it must be revoked/rotated.
+- **Ubuntu 3.12 typecheck.** Old `uv run --locked mypy src` failed; not reproducible on Windows. Root cause fixed: direct `subprocess.CREATE_NEW_PROCESS_GROUP` → `getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)`; direct `signal.CTRL_BREAK_EVENT` → `getattr(signal, "CTRL_BREAK_EVENT", None)` + fallback `terminate`. Windows behavior preserved; no Mypy strictness reduced. On retry run `45958458885`, **`typecheck` succeeded**. `lint`, `package`, `privacy`, `security` succeeded; test matrix was in progress at check time.
+- **Commits:** `935f6d4 Fix portable process-group typing and correct status docs` on `main`, pushed `origin/main`.
+
+**Priority 2 — stale ADR-047 status corrected:** removed claims that task cancellation / human-review continuation / cancellation routes are pending in `README.md`, `docs/EIS_IMPLEMENTATION_ROADMAP.md`, `docs/EIS_API_SPECIFICATION.md`, `learning/README.md`, `learning/08-agent-runtime-and-skills.md`; corrected `M0.2` `origin`/`main` and CI status; `CHANGELOG` `Fixed`. Old append-only handoff entries are not rewritten; this entry supersedes. Kept delegation, broader approvals, broader blocked-plan recovery, external audit anchoring, real Linux T2, M1, M0.2 pending. Did not implement external audit anchoring/delegation; no broad feature without tests/recovery. (Prior entries still mention historical blockers; ignore in favor of latest.)
+
+**Verify:** `uv run --locked pytest -q` → **292 passed, 1 skipped**; `uv run --locked ruff check .` → **All checks passed!**; `ruff format --check .` → **95 files already formatted**; `uv run --locked mypy src` → **58 source files, 0 issues**; `uv run --locked eis privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` → built; `uv run --locked python scripts/verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**. Retry CI jobs `typecheck`/`security`/`lint`/`package`/`privacy` **passed**.
+
+**Risks:** full retry run not observed to `conclusion=success`; branch protection **unverified/needs GitHub admin**; hosted logs unavailable; old Gitleaks exact finding unknown; `gitleaks` not run locally; no revocation; M0.2 not complete; M1 not complete; no real Linux T2 evidence; no external audit anchoring; delegation not implemented.
