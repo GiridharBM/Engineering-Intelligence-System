@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eis"
+version = "0.1.0a0"
+description = "Local-first engineering intelligence agent"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "Apache-2.0"
+authors = [{ name = "EIS contributors" }]
+dependencies = [
+  "alembic>=1.13,<2",
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "jsonschema>=4.23,<5",
+  "pydantic>=2.10,<3",
+  "python-dotenv>=1.0,<2",
+  "sqlalchemy>=2.0,<3",
+  "typer>=0.15,<1",
+  "uvicorn>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.14,<2",
+  "pip-audit>=2.8,<3",
+  "pytest>=9.0.3,<10",
+  "ruff>=0.9,<1",
+  "types-jsonschema>=4.23,<5",
+]
+
+[project.scripts]
+eis = "eis.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eis"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"policies" = "eis/_resources/policies"
+"schemas" = "eis/_resources/schemas"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/policies",
+  "/schemas",
+  "/tests",
+  "/scripts",
+  "/pyproject.toml",
+  "/uv.lock",
+  "/README.md",
+  "/LICENSE",
+  "/NOTICE",
+  "/.python-version",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["docs", "learning", "dist", "build", ".venv", ".uv-cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["eis"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+files = ["src"]

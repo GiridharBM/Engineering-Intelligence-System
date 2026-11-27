@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eis.invalid/schemas/policy.schema.json",
+  "title": "EIS declarative policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "default", "rules"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "default": {
+      "const": "deny"
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 1000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "principal", "action", "resource", "effect"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "principal": {
+          "type": "string",
+          "pattern": "^(user|system|agent:[a-z][a-z0-9._-]*|skill:[a-z0-9-]+@[0-9]+\\.[0-9]+\\.[0-9]+|job:[A-Za-z0-9_-]+)$"
+        },
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]*$"
+        },
+        "resource": {
+          "type": "string",
+          "pattern": "^(global|[a-z][a-z0-9_-]*:[^*\\s]+)$"
+        },
+        "effect": {
+          "enum": ["allow", "deny"]
+        }
+      }
+    }
+  }
+}

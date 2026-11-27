@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eis.invalid/schemas/policy-decision.schema.json",
+  "title": "EIS policy decision and audit record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_id",
+    "effect",
+    "reason",
+    "rule_id",
+    "policy_version",
+    "policy_hash",
+    "inputs_hash",
+    "principal",
+    "action",
+    "resource",
+    "context"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "pattern": "^pol_[0-9a-f]{24}$"
+    },
+    "effect": {
+      "enum": ["allow", "deny"]
+    },
+    "reason": {
+      "enum": ["explicit_allow", "explicit_deny", "default_deny"]
+    },
+    "rule_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "inputs_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "principal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.]*$"
+    },
+    "resource": {
+      "type": "string",
+      "pattern": "^(global|[a-z][a-z0-9_-]*:[^*\\s]+)$"
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "task_id", "attributes"],
+      "properties": {
+        "source": {
+          "enum": ["user", "cli", "api", "agent", "skill", "job", "system"]
+        },
+        "task_id": {
+          "type": ["string", "null"]
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    }
+  }
+}

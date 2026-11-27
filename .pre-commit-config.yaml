@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        args: [--strict]
+        pass_filenames: false
+        additional_dependencies:
+          - "fastapi>=0.115,<1"
+          - "pydantic>=2.10,<3"
+          - "typer>=0.15,<1"
+  - repo: local
+    hooks:
+      - id: eis-privacy
+        name: EIS privacy check
+        entry: uv run eis privacy-check
+        language: system
+        pass_filenames: false

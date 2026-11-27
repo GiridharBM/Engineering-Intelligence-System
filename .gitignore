@@ -1,0 +1,93 @@
+# EIS privacy-first ignore baseline.
+# This file is a convenience layer, not a security boundary. See ADR-022.
+
+# --- Runtime data (must never be tracked) ---
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm
+data/
+artifacts/
+logs/
+backups/
+cache/
+quarantine/
+keys/
+*.log
+
+# --- Secrets and credentials ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+secrets/
+.credentials*
+*token*.json
+!package-lock.json
+
+# --- Local configuration and personal paths ---
+.eis/
+config.local.toml
+*.local.toml
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+site/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Containers and infrastructure state ---
+.docker/
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# --- Test and scan output ---
+test-results/
+playwright-report/
+coverage/
+scan-output/
+*.sarif
+
+# --- Editor and OS noise ---
+*.swp
+*.swo
+*~
+.cache/
+.uv-cache/
+
+# --- Explicitly never committed ---
+# Original planning document is retained locally and requires publication review.
+/EIS_Complete_Project_Vision_and_Technical_Plan.txt
+# Project source from other repositories is read at runtime by path.
+# Do not add sibling project directories here or anywhere in this repository.
