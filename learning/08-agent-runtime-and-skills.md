@@ -175,7 +175,7 @@ Those changes become ordinary reviewed changes, not automatic evolution.
 | Cancellation + human-review continuation (ADR-047) | `eis task cancel`, `eis plan continue-review`; `POST /api/v1/tasks/{id}/cancel`, `POST /api/v1/tasks/{id}/review/continue`; `task.cancel`/`task.run`, atomic events, successful execution wins, no permission grant; `tests/test_task_cancellation_review.py` |
 | Crash recovery (ADR-045/046/049) | Read-only steps may retry once; successful writes reconcile idempotently; consumed approval without success evidence fails closed `execution_unverified`; no auto-resume; `tests/test_m1_crash_recovery.py` |
 
-There is no full plan/act agent loop to run today. The runtime runs a bounded read-only loop — at most three completions and two tool calls per run — or a bounded plan of at most six dependency-ordered read-only steps; both stop for human review or with a content-free failure code. Plans store only hashes and statuses, and their text is shown only with `--show-proposal`. Delegation, broader approvals, broader blocked-plan recovery, T2, external anchoring and a CLI policy evaluator remain manual or planned.
+There is no full plan/act agent loop to run today. The runtime runs a bounded read-only loop — at most three completions and two tool calls per run — or a bounded plan of at most six dependency-ordered read-only steps; both stop for human review or with a content-free failure code. Plans store only hashes and statuses, and their text is shown only with `--show-proposal`. Delegation, broader approvals, broader blocked-plan recovery, a real external anchor deployment and a CLI policy evaluator remain manual or planned; hosted CI exercises the real T2 backend.
 
 ## Try it
 

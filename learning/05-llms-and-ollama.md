@@ -88,7 +88,7 @@ EIS_MODEL_CONSENT_CLASSES=C0,C1
 - Consent and audit records are persisted in SQLite (`consents`, `egress_decisions`, `model_calls`).
 - Consent is revocable and expires; a revoked or expired record is ignored on the next call.
 - Every consent, egress and model-call write appends a content-free event to the hash-linked `audit_events` table in the same transaction.
-- `uv run eis audit verify` recomputes the chain. It is tamper-evident, not tamper-proof, and has no external anchor yet.
+- `uv run eis audit verify` recomputes the chain. It is tamper-evident, not tamper-proof. An optional S3 Object Lock anchor adapter exists, but no real bucket is configured or verified.
 - A JSONL audit sink remains available for diagnostics but is not chained.
 
 ```powershell
@@ -184,7 +184,7 @@ EIS's defence is architectural: content is labelled as data, the model has no au
 | OpenAI/xAI Responses, Gemini Interactions, newer Anthropic versions | Not implemented |
 | Ollama client | Not implemented |
 | Persistent SQLite consent and audit records | Implemented |
-| Hash-chained audit | Implemented; tamper-evident only, no external anchor |
+| Hash-chained audit | Implemented; tamper-evident only; optional S3 anchor adapter mocked-tested, no real bucket verified |
 
 ## Try it
 

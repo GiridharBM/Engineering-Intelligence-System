@@ -180,7 +180,7 @@ The gateway records an egress decision (`allow` or `deny`) before any network at
 }
 ```
 
-Records are persisted in SQLite tables `egress_decisions` and `model_calls`. They never store request messages, response text, prompts, API keys or raw provider bodies. Each projection row is committed with a content-free `audit_events` chain event. An egress allow is chained before the network attempt; the model-call outcome is chained after it, so a crash between them leaves a visible allow without an outcome rather than a silent call. The JSONL sink remains available for diagnostics but is not chained; the durable gateway factory uses SQLite. The chain is tamper-evident, not tamper-proof, and has no external anchor yet.
+Records are persisted in SQLite tables `egress_decisions` and `model_calls`. They never store request messages, response text, prompts, API keys or raw provider bodies. Each projection row is committed with a content-free `audit_events` chain event. An egress allow is chained before the network attempt; the model-call outcome is chained after it, so a crash between them leaves a visible allow without an outcome rather than a silent call. The JSONL sink remains available for diagnostics but is not chained; the durable gateway factory uses SQLite. The chain is tamper-evident, not tamper-proof; an optional S3 Object Lock anchor adapter exists but no real bucket is configured or verified.
 
 ## 7. Secret handling and `.env`
 
@@ -206,7 +206,7 @@ Records are persisted in SQLite tables `egress_decisions` and `model_calls`. The
 | Images, audio, embeddings | Deferred |
 | OpenAI Responses API, xAI Responses API, Gemini Interactions, Anthropic newer versions | Not implemented |
 | Persistent consent store with revoke/expiry | Supported in SQLite |
-| Hash-chained audit persistence | Supported; tamper-evident, no external anchor |
+| Hash-chained audit persistence | Supported; tamper-evident, optional S3 anchor adapter mocked-tested, no real external anchor |
 | Live provider verification with real keys | Not performed by design |
 | `x-opencode-session` routing header | Unverified; not added |
 

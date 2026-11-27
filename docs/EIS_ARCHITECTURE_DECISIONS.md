@@ -60,6 +60,7 @@ An ADR is required for any change that alters a module boundary, a persisted sch
 | ADR-047 | Atomic task cancellation and human-review continuation | Accepted |
 | ADR-048 | External audit-chain anchor interface | Accepted |
 | ADR-049 | Fail-closed recovery for consumed approvals | Accepted |
+| ADR-050 | Optional S3 Object Lock audit-anchor sink | Accepted |
 
 ---
 
@@ -606,6 +607,8 @@ On Windows, T1 is **not** a security boundary and is labelled as such; untrusted
 
 **Consequences.** Local tail truncation after an anchored prefix is detectable if the external service retains the checkpoint; before the first anchor it remains undetectable. A sink that does not enforce independent retention or replay protection gives no security benefit. The anchor event changes the chain head, so anchors are prefixes, not the current tip. External audit anchoring remains an unverified external requirement; M1 is not complete.
 
+**Amendment (ADR-050).** `AnchorReceipt` now also carries a required, opaque `external_version` (the exact external object version, for example an S3 version ID), and `receipt_hash` binds it. The local `audit_anchor_submitted` event records it. This lets the optional S3 Object Lock sink verify the retained version rather than only a key.
+
 ---
 
 ## ADR-049 — Fail-closed recovery for consumed approvals
@@ -623,6 +626,28 @@ On Windows, T1 is **not** a security boundary and is labelled as such; untrusted
 - No audit payload, CLI output or event contains file contents, approval diffs, prompts, credentials or project paths.
 
 **Consequences.** A write whose success evidence was never persisted is treated as unverified and fails the task; it is never retried and never claimed complete. This closes the stranded consumed-approval boundary without weakening approval digest or execution-evidence rules. Recovery is not general: delegation, broader step/limit recovery, external anchor backend, real Linux T2 evidence and full M1 acceptance remain open.
+
+---
+
+## ADR-050 — Optional S3 Object Lock audit-anchor sink
+
+**Status:** Accepted 2026-11-27.
+
+**Context.** ADR-048 defined a narrow `AuditAnchorSink` but configured no real backend. The remaining external gap is independent retention of a content-free checkpoint. Amazon S3 Object Lock is a candidate because it provides WORM retention on individual object versions. AWS's current documentation (checked 2026-11-27) states that Object Lock requires S3 Versioning, applies to general purpose buckets (not directory buckets or Outposts), and cannot be disabled after it is enabled. It also states that COMPLIANCE-mode retention cannot be shortened or deleted before expiry by any user, including the root user; the only way to remove it early is to delete the AWS account. In GOVERNANCE mode, a principal with `s3:BypassGovernanceRetention` can delete the version, shorten retention or remove it by sending the bypass header. Uploading an object with a retention period requires a `Content-MD5` or `x-amz-sdk-checksum-algorithm` header.
+
+**Decision.**
+- Add an optional `eis[s3]` extra with `boto3`. `eis.core.audit_anchor_s3` accepts injected SDK clients for tests and builds the real client through `boto3.Session(region_name=...)` with **no explicit credentials**, so the standard AWS credential provider chain applies. Credentials are never accepted as arguments, stored or logged. AWS S3 general purpose buckets only; no endpoint override.
+- Configuration is explicit and non-secret: `EIS_ANCHOR_BACKEND=s3`, `EIS_ANCHOR_S3_BUCKET`, `EIS_ANCHOR_S3_ACCOUNT_ID` (expected bucket owner), `EIS_ANCHOR_S3_REGION`, `EIS_ANCHOR_S3_RETENTION_MODE` (`COMPLIANCE` or `GOVERNANCE`) and `EIS_ANCHOR_S3_RETENTION_DAYS`. No bucket is created, no versioning or Object Lock configuration is changed, no retention period is chosen by the code, and no default retention duration exists.
+- Preflight fails closed unless the caller's expected account owns the bucket and the bucket has versioning `Enabled` and `ObjectLockEnabled` `Enabled`. Every S3 call sends `ExpectedBucketOwner`.
+- A checkpoint is the canonical content-free JSON body (`algorithm`, `anchor_id`, `anchor_hash`, `created_at_ms`, `head_hash`, `up_to_seq`) plus content-free metadata (`eis-*` fields including the body SHA-256). The deterministic key is `<prefix><anchor_id>.json`. Upload uses `ChecksumAlgorithm=SHA256` plus `ChecksumSHA256` (satisfying the Object Lock upload requirement), `ObjectLockMode` from configuration, `ObjectLockRetainUntilDate = now + configured days`, and `IfNoneMatch="*"`. A conditional-write conflict (412) retrieves the existing latest version and verifies it; an unexpected 409 or other service error fails closed.
+- A receipt is accepted only after retrieving the exact `VersionId`, comparing the body and metadata digest, reading `GetObjectRetention` for that version, and confirming the configured mode and a retain-until date at least the configured duration after the object's `LastModified` (five-minute clock-skew tolerance) and still in the future. The receipt's `external_ref`, `external_version` and `receipt_hash` bind bucket, key, version and anchor hash. Repeated uploads of the same anchor reuse the single version and return the same receipt.
+- `AnchorReceipt.external_version` and the receipt-hash binding extend ADR-048; the `audit_anchor_submitted` event stores the opaque version. No project content, prompt, payload text, credential, raw path or bucket secret is stored.
+- COMPLIANCE is the only mode that guarantees no principal, including the account root user, can shorten or delete the version before expiry. GOVERNANCE is supported only as an explicit operator choice and is weaker: any principal with `s3:BypassGovernanceRetention` can break it. The adapter never sends a bypass request and should be granted no bypass permission. Operators must not grant that permission to the sink principal or any human role able to assume it.
+- Required IAM actions: `s3:GetBucketVersioning`, `s3:GetBucketObjectLockConfiguration`, `s3:PutObject` (with checksum and Object Lock headers), `s3:GetObject`, `s3:GetObjectVersion`, `s3:GetObjectRetention`. No `s3:CreateBucket`, `s3:PutBucketVersioning`, `s3:PutBucketObjectLockConfiguration`, `s3:PutObjectRetention`, `s3:DeleteObject`, `s3:DeleteObjectVersion` or `s3:BypassGovernanceRetention` is needed. A bucket policy may add retention limits but is outside this adapter.
+- `eis anchor status` prints only non-secret configuration and the preflight result. It exits non-zero when no backend is configured or preflight fails, and never prints credentials.
+- Tests use injected fake clients and cover idempotent replay, altered bodies/metadata/mode/retention, a wrong receipt version, wrong/bucket-owner account, missing Object Lock or versioning, insufficient or missing retention, service errors with secret-shaped markers, config validation and CLI fail-closed output. There is no live AWS call, bucket or credential in the test suite.
+
+**Consequences.** A mocked adapter test is not real independent-retention evidence. Real evidence requires an operator to provision an Object Lock bucket, grant the listed permissions without the governance bypass, configure an explicit retention mode and duration, run `eis anchor status`, and then create and independently verify at least one anchor. COMPLIANCE retention is irreversible until expiry, so the duration choice is an operational commitment and cannot be shortened. GOVERNANCE is bypassable and therefore weaker. The adapter does not defend against a compromised AWS account, credential theft, a deleted AWS account, or loss of KMS keys used for encryption; Object Lock does not protect against account deletion or key loss. Object Lock is regional and incurs S3 storage and request charges. M1 remains incomplete until a real backend is provisioned and its independent retention is verified.
 
 ---
 

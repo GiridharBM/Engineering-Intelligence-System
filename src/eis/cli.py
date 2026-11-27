@@ -34,6 +34,8 @@ from eis.config import (
 )
 from eis.core.api_auth import load_or_create_token, rotate_token
 from eis.core.approvals import ApprovalError
+from eis.core.audit_anchor import AnchorUnavailable
+from eis.core.audit_anchor_s3 import build_s3_object_lock_sink, load_s3_object_lock_config
 from eis.core.audit_chain import AuditIntegrityError
 from eis.core.execution import ExecutionDenied, ExecutionGateway
 from eis.core.policy_service import PolicyService
@@ -69,6 +71,7 @@ from eis.storage.sessions import SessionTaskStore
 app = typer.Typer(no_args_is_help=True, help="Local-first engineering intelligence.")
 consent_app = typer.Typer(no_args_is_help=True, help="Manage durable provider consent.")
 audit_app = typer.Typer(no_args_is_help=True, help="Inspect the tamper-evident audit chain.")
+anchor_app = typer.Typer(no_args_is_help=True, help="Inspect external audit-anchor configuration.")
 approval_app = typer.Typer(
     no_args_is_help=True, help="Review and manage delegated write approvals."
 )
@@ -78,6 +81,7 @@ project_app = typer.Typer(no_args_is_help=True, help="Register explicit local pr
 plan_app = typer.Typer(no_args_is_help=True, help="Run and inspect bounded task plans.")
 app.add_typer(consent_app, name="consent")
 app.add_typer(audit_app, name="audit")
+app.add_typer(anchor_app, name="anchor")
 app.add_typer(approval_app, name="approval")
 app.add_typer(session_app, name="session")
 app.add_typer(task_app, name="task")
@@ -234,6 +238,33 @@ def audit_verify() -> None:
         )
         raise typer.Exit(1)
     typer.echo(f"audit_chain=ok events={status.event_count}")
+
+
+@anchor_app.command("status")
+def anchor_status() -> None:
+    """Show non-secret anchor settings and fail closed unless preflight passes."""
+    try:
+        config = load_s3_object_lock_config()
+    except ConfigurationError as exc:
+        typer.echo(f"anchor_backend=s3 configured=false error={exc}", err=True)
+        raise typer.Exit(1) from exc
+    if config is None:
+        typer.echo("anchor_backend=none configured=false")
+        raise typer.Exit(1)
+    typer.echo("anchor_backend=s3 configured=true")
+    typer.echo(f"bucket={config.bucket}")
+    typer.echo(f"account_id={config.account_id}")
+    typer.echo(f"region={config.region}")
+    typer.echo(f"retention_mode={config.retention_mode}")
+    typer.echo(f"retention_days={config.retention_days}")
+    typer.echo(f"key_prefix={config.key_prefix}")
+    typer.echo("compliance_mode=" + ("true" if config.retention_mode == "COMPLIANCE" else "false"))
+    try:
+        build_s3_object_lock_sink(config).preflight()
+    except AnchorUnavailable as exc:
+        typer.echo(f"preflight=failed reason={exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo("preflight=ok")
 
 
 def _consent_store() -> ConsentStore:

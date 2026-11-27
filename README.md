@@ -27,11 +27,11 @@ This repository contains the M0 specification package, the M0.2 bootstrap founda
 | Product, architecture, security, privacy, data, API specs | Complete (`docs/`) |
 | Governance files | Complete |
 | Application code | M0.2 skeleton plus policy/provider/storage/audit, digest-bound approvals, bounded execution, durable session/task and project-root registry, strict read-only model loop and plans, explicit interrupted-plan recovery, fail-closed T2 Linux backend, and task-bound model write proposals that stop for human approval and complete only with execution evidence |
-| Tests and CI | 323 tests passing locally (1 POSIX-only test skipped on Windows); clean-copy install verified offline on Python 3.11 and 3.12; CI configured but not yet executed |
+| Tests and CI | 352 tests passing locally (1 POSIX-only test skipped on Windows); clean-copy install verified offline on Python 3.11 and 3.12; hosted CI is green; branch protection still needs GitHub admin |
 | Licence | Apache-2.0 adopted; `LICENSE` and `NOTICE` present |
 | Git repository | Initialised locally; no remote and no commits |
 
-M0.2 is **not** marked complete: full hosted CI succeeded (`45958723773`) but branch protection remains unverified. `origin` is configured on `main`; a clean-copy install and fresh-wheel verification are recorded locally in [docs/M0.2_DECISIONS.md](docs/M0.2_DECISIONS.md). M1 is **not** complete: model plans can read through four registered tools and end with one task-bound write proposal, but every write stops for explicit human approval; delegation, broader API resources, broad recovery/limits, comprehensive redaction and external audit anchoring remain pending. The loopback API now supports authenticated sessions/tasks, approval review, and audit verification; `eis ask --fake` provides a deterministic local smoke run. T2 is available only where a Linux probe demonstrates every protection and is unavailable on this Windows host. See [docs/M0.2_DECISIONS.md](docs/M0.2_DECISIONS.md), [docs/EIS_POLICY_ENGINE.md](docs/EIS_POLICY_ENGINE.md) and [docs/EIS_MODEL_PROVIDER_CONFIGURATION.md](docs/EIS_MODEL_PROVIDER_CONFIGURATION.md).
+M0.2 is **not** marked complete: full hosted CI succeeded (`45958723773`) but branch protection remains unverified. `origin` is configured on `main`; a clean-copy install and fresh-wheel verification are recorded locally in [docs/M0.2_DECISIONS.md](docs/M0.2_DECISIONS.md). M1 is **not** complete: model plans can read through four registered tools and end with one task-bound write proposal, but every write stops for explicit human approval; delegation, broader API resources, broad recovery/limits and comprehensive redaction remain pending. An optional S3 Object Lock audit-anchor adapter is implemented and tested with mocked AWS clients, but no real bucket is configured or verified, so external audit anchoring remains pending. The loopback API now supports authenticated sessions/tasks, approval review, and audit verification; `eis ask --fake` provides a deterministic local smoke run. T2 is available only where a Linux probe demonstrates every protection and is unavailable on this Windows host. See [docs/M0.2_DECISIONS.md](docs/M0.2_DECISIONS.md), [docs/EIS_POLICY_ENGINE.md](docs/EIS_POLICY_ENGINE.md) and [docs/EIS_MODEL_PROVIDER_CONFIGURATION.md](docs/EIS_MODEL_PROVIDER_CONFIGURATION.md).
 
 The initial audit is at [docs/EIS_INITIAL_REPOSITORY_AUDIT.md](docs/EIS_INITIAL_REPOSITORY_AUDIT.md).
 
@@ -139,6 +139,35 @@ EIS enables no model provider by default. Supported text protocols: OpenCode-com
 3. Run `uv run eis provider-check` to validate settings without a network request.
 
 External calls fail closed without provider-scoped consent; C3 is never allowed. Consent, egress/model-call projections and the append-only hash-chained audit events are stored in SQLite; manage consent with `eis consent grant`, `eis consent list` and `eis consent revoke`, and verify integrity with `eis audit verify`. Official endpoints, protocol shapes, consent/audit behavior and deferred features are in [docs/EIS_MODEL_PROVIDER_CONFIGURATION.md](docs/EIS_MODEL_PROVIDER_CONFIGURATION.md). Ollama remains optional and is not required.
+
+## Audit anchoring (optional)
+
+EIS has no external anchor backend by default. The local `audit_anchor_submitted` event is only a receipt/reference; it is not independent retention.
+
+An optional S3 Object Lock sink can retain content-free checkpoints in a pre-existing AWS S3 general purpose bucket. It is for operators who already control a bucket and want WORM retention; it does not create or configure a bucket, and it does not choose a retention period.
+
+1. Install the optional extra: `uv sync --extra s3` (or `pip install 'eis[s3]'`).
+2. Use a bucket with S3 Versioning and Object Lock enabled. AWS does not allow Object Lock or versioning to be disabled after Object Lock is enabled, and Object Lock is not supported on directory buckets or S3 on Outposts.
+3. Configure the backend explicitly:
+
+   ```powershell
+   $env:EIS_ANCHOR_BACKEND="s3"
+   $env:EIS_ANCHOR_S3_BUCKET="your-existing-bucket"
+   $env:EIS_ANCHOR_S3_ACCOUNT_ID="123456789012"
+   $env:EIS_ANCHOR_S3_REGION="us-east-1"
+   $env:EIS_ANCHOR_S3_RETENTION_MODE="COMPLIANCE"   # or GOVERNANCE
+   $env:EIS_ANCHOR_S3_RETENTION_DAYS="30"           # required; no default
+   $env:EIS_ANCHOR_S3_KEY_PREFIX="eis/audit-anchors/"
+   ```
+
+   Credentials are resolved only through boto3's standard AWS provider chain. EIS never accepts, stores, prints or logs access keys.
+4. Run `uv run eis anchor status`. It prints the non-secret settings and `preflight=ok` only when the expected account owns the bucket and both versioning and Object Lock are enabled. It exits non-zero otherwise.
+
+**Retention choice is a commitment.** COMPLIANCE retention cannot be shortened or deleted before expiry by any user, including the AWS account root user; deleting the AWS account is the only early removal. GOVERNANCE retention can be bypassed by any principal holding `s3:BypassGovernanceRetention`, so it is materially weaker. Do not grant that permission to the sink principal or any role that can assume it.
+
+The sink needs only `s3:GetBucketVersioning`, `s3:GetBucketObjectLockConfiguration`, `s3:PutObject`, `s3:GetObject`, `s3:GetObjectVersion` and `s3:GetObjectRetention` on the configured bucket/prefix. It does not need bucket-create, bucket-configuration, retention-change, delete or governance-bypass permissions. It writes one deterministic object per anchor (`<prefix><anchor_id>.json`), uses a conditional write to avoid overwriting, and verifies the exact object version, body digest, retention mode and retain-until date before accepting the receipt. See ADR-050 for the full contract.
+
+The adapter's tests use injected fake AWS clients; they are not evidence of real independent retention. Real evidence requires a provisioned bucket, the permissions above, an explicit retention decision, and at least one anchor created and independently verified.
 
 Runtime data belongs in the platform application-data directory, never in this repository. Registered project roots are empty by default; add one explicitly with `eis project register <project_id> <directory>`. The M2 project registry extends this minimal registry. No hardware, model tag or Obsidian path is chosen here.
 

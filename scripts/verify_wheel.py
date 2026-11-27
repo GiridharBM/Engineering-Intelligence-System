@@ -33,6 +33,7 @@ REQUIRED = (
     "eis/core/model_gateway.py",
     "eis/core/audit_chain.py",
     "eis/core/audit_anchor.py",
+    "eis/core/audit_anchor_s3.py",
     "eis/core/api_auth.py",
     "eis/core/task_approval.py",
     "eis/api.py",

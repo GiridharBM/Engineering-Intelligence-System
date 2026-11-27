@@ -139,7 +139,9 @@ B7 Evidence boundary: workspace <-> append-only ledger
 | Audit tampering | Delete a denial event | Append-only API, DB triggers, hash chain |
 | Evidence substitution | Replace a passing log | Content-addressed artifacts, hash in run record |
 | Report inflation | Claim readiness without runs | Report engine requires run IDs per claim |
-| Anchor rewrite | Recompute chain and anchor | `AuditAnchorSink` checkpoint prefix binding + independent verification; unverified backend, residual risk documented |
+| Anchor rewrite | Recompute chain and anchor | `AuditAnchorSink` checkpoint prefix binding + independent verification. Optional S3 Object Lock adapter verifies exact version/body digest/mode/retain-until and fails closed; mocked tests only, no real bucket verified |
+| Weak or bypassable retention | Operator chooses GOVERNANCE or grants `s3:BypassGovernanceRetention` | Explicit mode/duration configuration; adapter never requests bypass; docs require COMPLIANCE for non-bypassable retention and no bypass permission for the sink principal |
+| Bucket misconfiguration | Object Lock/versioning disabled or foreign bucket owner | Preflight requires versioning `Enabled`, Object Lock `Enabled` and `ExpectedBucketOwner` on every call; no bucket creation or configuration change |
 
 ## 6. Agent-Specific Threats (OWASP LLM Top 10 mapping)
 

@@ -579,11 +579,11 @@ canonical hash and every previous-hash link, and reports the first failure.
 
 Limitation: this is **tamper-evident, not tamper-proof**. An actor with direct
 database access can drop the triggers and rewrite or truncate the chain.
-Tail truncation remains undetectable until a checkpoint is retained by an independently controlled external service. The verified prefix/hash anchor interface is implemented in `eis.core.audit_anchor`; the local `audit_anchor_submitted` event is only a receipt/reference, not the external copy. No external backend is configured or verified.
+Tail truncation remains undetectable until a checkpoint is retained by an independently controlled external service. The verified prefix/hash anchor interface is implemented in `eis.core.audit_anchor`; the local `audit_anchor_submitted` event stores `anchor_hash`, `external_ref`, the opaque `external_version`, `received_at_ms` and `receipt_hash` and is only a receipt/reference, not the external copy. An optional S3 Object Lock adapter (`eis.core.audit_anchor_s3`) stores the canonical content-free checkpoint in a pre-existing versioned, Object Lock enabled bucket and verifies the exact version, digest, retention mode and retain-until date. Its tests use mocked AWS clients; no real bucket is configured or verified.
 
 ### `integrity_anchors`
 
-Specified, not implemented as a local table. Do not treat a local table or file as external anchoring. The tested interface uses `AuditAnchor`, `AnchorReceipt`, and `AuditAnchorSink` (see ADR-048).
+Specified, not implemented as a local table. Do not treat a local table or file as external anchoring. The tested interface uses `AuditAnchor`, `AnchorReceipt` (including opaque `external_version`), and `AuditAnchorSink` (see ADR-048/ADR-050). The optional S3 Object Lock sink does not create a local anchor table; S3 is the external store.
 
 ### `exports`
 

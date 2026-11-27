@@ -76,6 +76,9 @@ class FakeExternalAnchorSink:
             ).hexdigest()[:32]
         )
         received_at_ms = anchor.created_at_ms + 1  # type: ignore[attr-defined]
+        external_version = (
+            "ver_" + hashlib.sha256(anchor.anchor_hash.encode("ascii")).hexdigest()  # type: ignore[attr-defined]
+        )
         receipt = AnchorReceipt(
             external_ref=external_ref,
             received_at_ms=received_at_ms,
@@ -83,7 +86,9 @@ class FakeExternalAnchorSink:
                 anchor_hash=anchor.anchor_hash,  # type: ignore[attr-defined]
                 external_ref=external_ref,
                 received_at_ms=received_at_ms,
+                external_version=external_version,
             ),
+            external_version=external_version,
         )
         self.receipts[anchor.anchor_id] = receipt  # type: ignore[attr-defined]
         return receipt
@@ -127,6 +132,7 @@ def test_checkpoint_creation_verification_and_content_free_event(tmp_path: Path)
     assert payload["up_to_seq"] == 2
     assert payload["head_hash"] == submission.anchor.head_hash
     assert payload["external_ref"] == submission.receipt.external_ref
+    assert payload["external_version"] == submission.receipt.external_version
     assert PRIVATE_MARKER not in str(payload)
     assert "secret" not in str(payload).lower()
     assert store.status().ok
@@ -154,6 +160,7 @@ def test_idempotent_replay_and_mismatched_receipt_fail_closed(tmp_path: Path) ->
         external_ref="ext_" + "c" * 32,
         received_at_ms=first.receipt.received_at_ms,
         receipt_hash=first.receipt.receipt_hash,
+        external_version=first.receipt.external_version,
     )
     with pytest.raises(AnchorVerificationError):
         service.verify(AnchorSubmission(first.anchor, forged))

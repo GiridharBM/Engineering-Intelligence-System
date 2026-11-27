@@ -30,6 +30,9 @@ dev = [
   "ruff>=0.9,<1",
   "types-jsonschema>=4.23,<5",
 ]
+s3 = [
+  "boto3>=1.35,<2",
+]
 
 [project.scripts]
 eis = "eis.cli:main"

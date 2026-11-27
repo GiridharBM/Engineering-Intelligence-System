@@ -1,6 +1,6 @@
 # 7. Security and Privacy
 
-**Status:** The policy evaluator, provider consent/audit persistence, tamper-evident chain, digest-bound A3 writes, bounded T1, fail-closed Linux T2 backend, durable session/task and plan runtime, strict model envelopes, explicit read-only recovery, pattern-based egress redaction, and a task-bound plan-final write proposal requiring human approval are implemented. Model output never supplies identity, root, policy, image, mount or isolation fields. Delegation, broader capabilities, comprehensive secret detection and a configured external audit-anchor backend remain incomplete/unverified. The authenticated runtime API and human-review continuation are implemented; the external anchor interface is implemented and fake-backed tested. A hosted Ubuntu job now exercises the real Linux T2 backend against a digest-pinned image and checked-in seccomp profile; T2 remains unavailable on Windows hosts and is not evidence against a compromised runner or kernel.
+**Status:** The policy evaluator, provider consent/audit persistence, tamper-evident chain, digest-bound A3 writes, bounded T1, fail-closed Linux T2 backend, durable session/task and plan runtime, strict model envelopes, explicit read-only recovery, pattern-based egress redaction, and a task-bound plan-final write proposal requiring human approval are implemented. Model output never supplies identity, root, policy, image, mount or isolation fields. Delegation, broader capabilities, comprehensive secret detection and a real external audit-anchor deployment remain incomplete/unverified. The authenticated runtime API and human-review continuation are implemented; the external anchor interface is implemented and fake-backed tested, and an optional S3 Object Lock adapter is tested with mocked AWS clients but has no configured/verified bucket. A hosted Ubuntu job now exercises the real Linux T2 backend against a digest-pinned image and checked-in seccomp profile; T2 remains unavailable on Windows hosts and is not evidence against a compromised runner or kernel.
 **Specs:** [`docs/EIS_SECURITY_ARCHITECTURE.md`](../docs/EIS_SECURITY_ARCHITECTURE.md), [`docs/EIS_THREAT_MODEL.md`](../docs/EIS_THREAT_MODEL.md), [`docs/EIS_EXECUTION_AND_PERMISSION_MODEL.md`](../docs/EIS_EXECUTION_AND_PERMISSION_MODEL.md)
 
 ## The core idea
@@ -153,7 +153,7 @@ Implemented properties:
 - `eis audit verify` checks sequence continuity, canonical hashes and every previous-hash link;
 - an integrity failure blocks further appends, provider calls and read-only tools; approval/execution checks remain as documented in the security architecture.
 
-Not implemented: a daily external anchor and startup integrity check. Without an anchor, truncating the tail of the chain is undetectable. This is **tamper-evident, not tamper-proof**. A privileged actor can rewrite the local chain after dropping triggers; the anchor and alert would make that detectable once added. The threat model states this limitation.
+Not implemented as a scheduled job: a daily external anchor and startup integrity check. An optional S3 Object Lock adapter exists and is tested with mocked AWS clients, but no real bucket is configured or verified. Without a real external anchor, truncating the tail of the chain is undetectable. This is **tamper-evident, not tamper-proof**. A privileged actor can rewrite the local chain after dropping triggers; a provisioned anchor and alert would make that detectable. The threat model states this limitation.
 
 ## Read-only project tools
 
@@ -258,7 +258,7 @@ What remains incomplete:
 
 - full capability registry and decision obligations;
 - generalized resource resolution and complete C3 classification/redaction coverage;
-- external audit anchor and startup integrity check;
+- real external audit-anchor deployment and startup integrity check;
 - full plan/act session/task loop beyond the bounded read-only and task-bound write-approval slices (delegation and human-review continuation);
 - model-directed tool execution beyond the four registered read-only tools;
 - T2 on Windows or where the probe cannot demonstrate Linux-container protections; T1 profiles are restricted to application-registered commands and trusted projects, and T1 is not a Windows security boundary;

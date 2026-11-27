@@ -1,7 +1,7 @@
 # EIS Policy Engine and Decision Audit Contract
 
 Version: 1.2 (projection, approvals and bounded execution)
-Status: Implemented: typed, schema-validated, deterministic deny-by-default evaluation, chained policy-decision persistence, a queryable projection, digest-bound A3 project-write approvals and bounded T1 execution for fixed profiles. Not implemented: a policy `require_approval` effect, obligations, broad resource resolution, T2 isolation, broader approval actions and external audit anchoring. Decisions evaluated directly through `PolicyEngine` remain pure and unaudited.
+Status: Implemented: typed, schema-validated, deterministic deny-by-default evaluation, chained policy-decision persistence, a queryable projection, digest-bound A3 project-write approvals and bounded T1 execution for fixed profiles. Not implemented: a policy `require_approval` effect, obligations, broad resource resolution, broader approval actions and a real external audit-anchor deployment (an optional S3 adapter is mocked-tested only). Decisions evaluated directly through `PolicyEngine` remain pure and unaudited.
 Related: [EIS_EXECUTION_AND_PERMISSION_MODEL.md](EIS_EXECUTION_AND_PERMISSION_MODEL.md), [EIS_SECURITY_ARCHITECTURE.md](EIS_SECURITY_ARCHITECTURE.md), [EIS_ARCHITECTURE_DECISIONS.md](EIS_ARCHITECTURE_DECISIONS.md) (ADR-008, ADR-037)
 
 ---

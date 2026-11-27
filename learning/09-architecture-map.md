@@ -151,7 +151,7 @@ Planned modules such as `core/agent_runtime` and `modules/project_registry` do n
 | Content | EIS instructions | Repo text, tool output | Delimited as data |
 | Skill | Validated skill | Community package | Validation and T2 (planned) |
 | Tool | Trusted adapter | External binary/MCP | Allowlist and sandbox (planned) |
-| Evidence | Append-only ledger | Mutable workspace | Audit chain implemented; external anchor planned |
+| Evidence | Append-only ledger | Mutable workspace | Audit chain implemented; optional S3 Object Lock adapter mocked-tested, real external anchor pending |
 
 Repository text never becomes an instruction. The policy engine is the only authority.
 

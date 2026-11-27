@@ -10,7 +10,7 @@ Short definitions for terms used across EIS. Each entry says where the concept a
 
 **Artifact.** A stored output such as a log, report, patch or scanner result. Planned artifacts are content-addressed by SHA-256 and linked to evidence.
 
-**Audit chain.** An append-only event log where each entry includes the previous entry's hash. Tampering becomes detectable. It is tamper-evident, not tamper-proof. Implemented as `audit_events` with `eis audit verify`; a tested external-anchor interface exists but no real backend is verified. See [security architecture](../docs/EIS_SECURITY_ARCHITECTURE.md).
+**Audit chain.** An append-only event log where each entry includes the previous entry's hash. Tampering becomes detectable. It is tamper-evident, not tamper-proof. Implemented as `audit_events` with `eis audit verify`; a tested external-anchor interface and an optional S3 Object Lock adapter exist, but no real backend is verified. See [security architecture](../docs/EIS_SECURITY_ARCHITECTURE.md).
 
 **Capability.** A permission over a typed resource, such as `project.read` on a specific project. The current policy engine evaluates typed principal/action/resource requests with exact-match rules; the full capability registry, obligations and approval effects are planned for later M1 slices.
 
