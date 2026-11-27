@@ -3,8 +3,9 @@
 """Best-effort credential redaction for content crossing an egress boundary.
 
 The rules target common credential shapes only: bearer/basic tokens, JWTs,
-PEM private-key blocks and headers, well-known API-key prefixes, environment-
-style assignments and credential-bearing URLs. They are deterministic and
+PEM private-key blocks (unterminated blocks are redacted through end-of-message),
+well-known API-key prefixes, environment-style assignments and credential-bearing
+URLs. They are deterministic and
 narrow to limit false positives, but they are **not** complete secret detection:
 novel, encoded, split, truncated or otherwise unusual secrets can pass through.
 Consent, data-class limits and the decision to trust a provider remain the
@@ -18,7 +19,9 @@ import re
 _PRIVATE_KEY_BLOCK = re.compile(
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"
 )
-_PRIVATE_KEY_HEADER = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
+# An unterminated BEGIN marker is treated as extending to end-of-message so no
+# key body survives. Complete blocks are redacted first by the pattern above.
+_PRIVATE_KEY_UNTERMINATED = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*\Z")
 
 # A URL with userinfo (scheme://user:password@host) in any common scheme.
 _URL_CREDENTIALS = re.compile(r"(?i)\b[a-z][a-z0-9+.-]{1,15}://[^\s/?#@]+:[^\s/?#@]+@[^\s<>\"']+")
@@ -30,7 +33,7 @@ _URL_QUERY_CREDENTIAL = re.compile(
 
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("private_key", _PRIVATE_KEY_BLOCK),
-    ("private_key", _PRIVATE_KEY_HEADER),
+    ("private_key", _PRIVATE_KEY_UNTERMINATED),
     (
         "json_web_token",
         re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"),

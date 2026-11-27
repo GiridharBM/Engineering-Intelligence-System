@@ -433,6 +433,28 @@ def test_gateway_redacts_before_provider_request() -> None:
     assert jwt not in str(sink.model_calls[-1].as_dict())
 
 
+def test_gateway_redacts_unterminated_private_key_body_before_provider() -> None:
+    begin = "-----BEGIN " + "RSA PRIVATE KEY-----"
+    sentinel = "PEM-BODY-SENTINEL-" + "x" * 20
+    provider = _CapturingProvider()
+    sink = InMemoryAuditSink()
+    gateway = ModelGateway(provider, ConsentGate([_consent()]), sink)
+    request = CompletionRequest(
+        messages=(ChatMessage(role="user", content=f"goal\n{begin}\n{sentinel}\nmore-body"),),
+        max_tokens=16,
+    )
+
+    asyncio.run(gateway.complete(request))
+
+    sent = provider.requests[0].messages[-1].content
+    assert begin not in sent
+    assert sentinel not in sent
+    assert "more-body" not in sent
+    assert "[REDACTED:private_key]" in sent
+    assert sink.model_calls[-1].request_hash == request.request_hash
+    assert sentinel not in str(sink.model_calls[-1].as_dict())
+
+
 def test_provider_http_error_body_is_not_echoed() -> None:
     secret = "AK" + "IA" + "A" * 16
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from eis.core.redaction import redact_text
 from eis.core.runtime import _tool_feedback
 from eis.core.structured_logging import correlation_id_var, safe_log_event
@@ -107,6 +109,39 @@ def test_redacts_bearer_and_basic_headers_without_prose_false_positive() -> None
     assert redact_text("Basic authentication is explained here.") == (
         "Basic authentication is explained here."
     )
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "RSA PRIVATE KEY",
+        "EC PRIVATE KEY",
+        "OPENSSH PRIVATE KEY",
+        "PRIVATE KEY",
+    ],
+)
+def test_unterminated_private_key_redacts_through_end_of_message(label: str) -> None:
+    begin = "-----BEGIN " + label + "-----"
+    sentinel = "BODY-SENTINEL-" + label.replace(" ", "-")
+    text = f"ordinary prose before\n{begin}\n{sentinel}\nmore-key-body"
+
+    result = redact_text(text)
+
+    assert "ordinary prose before" in result
+    assert begin not in result
+    assert sentinel not in result
+    assert "more-key-body" not in result
+    assert result.endswith("[REDACTED:private_key]")
+
+
+def test_complete_private_key_block_preserves_following_prose() -> None:
+    block = _fake_private_key_block()
+    result = redact_text(f"before\n{block}\nafter")
+
+    assert "before" in result
+    assert "after" in result
+    assert "MIIEexamplebody" not in result
+    assert "[REDACTED:private_key]" in result
 
 
 def test_malformed_and_unrecognized_inputs_do_not_raise() -> None:

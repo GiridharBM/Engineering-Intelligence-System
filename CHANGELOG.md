@@ -6,6 +6,8 @@ All notable changes to EIS are documented here. Format follows [Keep a Changelog
 
 ### Fixed
 
+- **Unterminated PEM private-key redaction:** a recognized `-----BEGIN ... PRIVATE KEY-----` marker without a matching END now redacts from the marker through end-of-message instead of only the header, so no following key body reaches a provider, log or receipt. Complete blocks keep their bounded redaction and preserve following prose. Added synthetic unterminated RSA/EC/OpenSSH/generic tests and a fake-provider test proving the body sentinel is absent.
+
 - **Fail-closed recorded anchor reconstruction:** `_anchor_from_event` now rejects a missing, malformed or unsupported `algorithm` instead of silently reinterpreting it as `eis-audit-anchor-v1`. `verify_recorded` and the `create` retry/idempotency paths route reconstruction errors through the existing safe `anchor_event_invalid` path before any external verification. Added regression tests that rehash a tampered anchor event and confirm an unknown or missing algorithm is rejected without a sink call; successful v1 create/verify is unchanged.
 
 - CI typecheck portability: replaced direct `subprocess.CREATE_NEW_PROCESS_GROUP` and `signal.CTRL_BREAK_EVENT` references with `getattr(..., default)`, so Ubuntu Mypy no longer requires Windows-only names while preserving Windows process-group behavior; no Mypy checks were weakened.

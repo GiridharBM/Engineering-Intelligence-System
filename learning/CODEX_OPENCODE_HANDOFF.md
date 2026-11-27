@@ -1062,3 +1062,19 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Limits / risks:** the rules are narrow and deterministic. Novel, encoded, split, truncated or otherwise unusual secrets can still pass, and credential-shaped ordinary text can be over-redacted. C3 classification, consent and the decision to trust a provider remain the primary controls; this is not complete DLP. No live provider or AWS evidence was produced. Operator-provisioned S3 Object Lock bucket/retention, real retention evidence and GitHub branch protection remain external requirements; delegation remains M5; M0.2/M1 remain incomplete.
 
 **Hosted result (appended after push):** run `45998372541` for commit `f8f2edd` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No provider or AWS secret, live provider/AWS call or cloud resource was added; redaction tests remain synthetic/source-level only.
+
+---
+
+## 2026-11-27 — OpenCode (unterminated PEM redaction fix)
+
+**Status:** verified locally; hosted result appended after push
+
+**Context:** Corrected the earlier redaction pass: the `_PRIVATE_KEY_HEADER` fallback redacted only the BEGIN marker and left an unterminated key body in the output. Read `eis.core.redaction`, `tests/test_redaction.py` and `tests/test_provider_adapters.py`. No `.env` read, no real key, no provider or AWS call.
+
+**Fix:** replaced the header-only fallback with `_PRIVATE_KEY_UNTERMINATED = -----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*\Z`, applied after the complete-block pattern. A recognized BEGIN marker with no matching END now redacts from the marker through end-of-message, so no body survives. Complete `BEGIN ... END` blocks keep their bounded redaction, and ordinary prose before a marker is preserved. Added synthetic unterminated RSA, EC, OpenSSH and generic private-key tests with body sentinels; a complete-block test proving following prose is preserved; and a fake-provider gateway test proving the provider request and audit record contain no unterminated PEM body.
+
+**Verify (local):** focused `tests/test_redaction.py tests/test_provider_adapters.py` → **34 passed**; full `pytest -q` → **384 passed, 1 skipped**; `ruff check .` → All checks passed; `ruff format --check .` → 104 files; `mypy src` → 61 files, 0 issues; `privacy: ok`; `pip-audit` → no known vulnerabilities (local `eis` skipped as not on PyPI); `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass; Markdown links 43 files / 248 links / 0 broken.
+
+**Limits / risks:** pattern rules remain best-effort, not complete DLP; unterminated PEM handling necessarily redacts everything after the marker, including any ordinary prose that follows it. No live provider/AWS evidence was produced. Real S3 Object Lock retention evidence, GitHub branch protection and delegation (M5) remain external requirements; M0.2/M1 remain incomplete.
+
+**Hosted result (appended after push):** pending.
