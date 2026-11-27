@@ -1043,4 +1043,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Risks / remaining:** fake-sink evidence only; no real external-retention evidence. Operator-provisioned Object Lock bucket, explicit COMPLIANCE/GOVERNANCE mode and duration, least-privilege IAM without `s3:BypassGovernanceRetention`, a real `eis anchor create`/`verify` run, and independently retained evidence remain external requirements. Branch protection still needs GitHub admin; delegation belongs to M5; M0.2/M1 remain incomplete.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `45994471245` for commit `5a6a6fa` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No AWS job, credential, live AWS call or bucket was added; the anchor tests remain fake-sink only.
