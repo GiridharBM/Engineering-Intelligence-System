@@ -4,6 +4,10 @@ All notable changes to EIS are documented here. Format follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Fixed
+
+- CI typecheck portability: replaced direct `subprocess.CREATE_NEW_PROCESS_GROUP` and `signal.CTRL_BREAK_EVENT` references with `getattr(..., default)`, so Ubuntu Mypy no longer requires Windows-only names while preserving Windows process-group behavior; no Mypy checks were weakened.
+
 ### Added
 
 - **M1 atomic task cancellation and human-review continuation (ADR-047):** migration `0009_task_cancellation_review`; `cancel_task` `task.cancel` + atomic task/plan/step + chained event updates; never cancels terminal/`approval_required` tasks or tasks with successful `execution_runs`; successful execution evidence wins; `execute_write` rechecks task state. Strict `continue_plan_review`/`continue_human_review` for `human_review` with `task.run` rechecked, policy hash/session/project/root checks, no permission/approval/root/model grant, atomic blockedâ†’running + event, resume only unexecuted ready steps. CLI `eis task cancel`, `eis plan continue-review`; API `POST /api/v1/tasks/{id}/cancel`, `POST /api/v1/tasks/{id}/review/continue` with auth + strict schema. Tests: `tests/test_task_cancellation_review.py`, `tests/test_api_approvals.py`, `tests/test_api_auth.py`.

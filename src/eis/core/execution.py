@@ -555,7 +555,7 @@ def _run_limited(profile: CommandProfile, cwd: Path, *, run_id: str) -> Executio
             stderr=subprocess.PIPE,
             shell=False,
             close_fds=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
         )
     else:
         process = subprocess.Popen(
@@ -637,7 +637,11 @@ def _terminate_process(process: subprocess.Popen[bytes]) -> None:
         return
     try:
         if os.name == "nt":
-            process.send_signal(signal.CTRL_BREAK_EVENT)
+            break_signal = getattr(signal, "CTRL_BREAK_EVENT", None)
+            if break_signal is not None:
+                process.send_signal(break_signal)
+            else:
+                process.terminate()
         else:
             kill_group = getattr(os, "killpg", None)
             kill_signal = getattr(signal, "SIGKILL", None)
