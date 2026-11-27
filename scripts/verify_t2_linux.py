@@ -21,6 +21,7 @@ from pathlib import Path
 
 from eis.core.sandbox import (
     LinuxContainerBackend,
+    SandboxError,
     SandboxRequest,
     probe_linux_container,
 )
@@ -163,14 +164,16 @@ def main() -> int:
         raise SystemExit("missing capability did not fail closed")
     print("fail_closed_missing_capability=ok")
 
-    mutable = LinuxContainerBackend(
-        engine="docker",
-        image="docker.io/library/alpine:latest",
-        seccomp_profile=seccomp,
-    )
-    if mutable.capabilities.sufficient:
+    try:
+        LinuxContainerBackend(
+            engine="docker",
+            image="docker.io/library/alpine:latest",
+            seccomp_profile=seccomp,
+        )
+    except SandboxError:
+        print("fail_closed_mutable_image=ok")
+    else:
         raise SystemExit("mutable image tag was accepted")
-    print("fail_closed_mutable_image=ok")
 
     _clean_containers()
     print("cleanup=no_leftover_containers")
@@ -178,4 +181,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        status = main()
+    except SystemExit as exc:
+        if isinstance(exc.code, str):
+            print(f"::error::{exc.code}")
+        raise
+    raise SystemExit(status)
