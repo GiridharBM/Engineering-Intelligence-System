@@ -1095,4 +1095,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Limits / risks:** the smoke verifies `/health` and one authenticated read-only route, not every API route; SSE and the wider API remain planned. No live provider/AWS evidence was produced. Real S3 Object Lock retention evidence, GitHub branch protection and delegation (M5) remain operator/admin requirements; M0.2/M1 remain incomplete.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `46006698364` for commit `3f6c7a4` reached `status=completed`, **`conclusion=success`**: all **13/13 jobs** passed, including the new `Serve loopback smoke (real process)` job. That job launched the real `eis serve` subprocess on `127.0.0.1`, verified public `/health`, 401 without a token, 200 on the authenticated sessions route, non-loopback rejection and child cleanup. No token was printed and no provider/AWS call was made.
