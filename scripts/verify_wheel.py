@@ -29,6 +29,8 @@ REQUIRED = (
     "eis/core/model_envelope.py",
     "eis/core/model_plan.py",
     "eis/core/model_gateway.py",
+    "eis/core/audit_chain.py",
+    "eis/core/audit_anchor.py",
     "eis/core/api_auth.py",
     "eis/core/task_approval.py",
     "eis/api.py",

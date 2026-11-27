@@ -160,6 +160,23 @@ class AuditChainStore:
             )
         return verify_chain(events)
 
+    def events_up_to(self, seq: int) -> tuple[AuditEvent, ...]:
+        """Read the first ``seq`` events for historical anchor verification."""
+        if seq < 0:
+            raise ValueError("seq must not be negative")
+        with self._database.session() as connection:
+            events = self._read_events(connection)
+        return events[:seq]
+
+    @staticmethod
+    def status_for(events: tuple[AuditEvent, ...]) -> ChainStatus:
+        return verify_chain(events)
+
+    def event_by_id(self, event_id: str) -> AuditEvent | None:
+        with self._database.session() as connection:
+            events = self._read_events(connection)
+        return next((item for item in events if item.event_id == event_id), None)
+
     def require_intact(self) -> ChainStatus:
         status = self.status()
         if not status.ok:

@@ -139,7 +139,7 @@ B7 Evidence boundary: workspace <-> append-only ledger
 | Audit tampering | Delete a denial event | Append-only API, DB triggers, hash chain |
 | Evidence substitution | Replace a passing log | Content-addressed artifacts, hash in run record |
 | Report inflation | Claim readiness without runs | Report engine requires run IDs per claim |
-| Anchor rewrite | Recompute chain and anchor | External timestamp optional; residual risk documented |
+| Anchor rewrite | Recompute chain and anchor | `AuditAnchorSink` checkpoint prefix binding + independent verification; unverified backend, residual risk documented |
 
 ## 6. Agent-Specific Threats (OWASP LLM Top 10 mapping)
 
@@ -231,7 +231,7 @@ Goal: evolve a benign skill into a privileged one
 | R-03 | Redaction misses a novel secret | Medium | Medium | Accepted | Classification blocks C3 from model; post-run scan |
 | R-04 | User approves a harmful diff | Medium | High | Accepted | Diff emphasis, risk labels, backups, no auto-approve |
 | R-05 | Malicious dependency in a pinned version | Low | High | Accepted | Advisory monitoring, SBOM, quick update path |
-| R-06 | Audit chain rewritten by privileged actor | Low | High | Accepted | Optional external anchor; integrity alert |
+| R-06 | Audit chain rewritten by privileged actor | Low | High | Open | Checkpoint interface implemented; independently controlled backend unverified; integrity alert |
 | R-07 | Local model gives confidently wrong advice | High | Medium | Accepted | Hypothesis labelling, evidence requirements |
 | R-08 | PAM semantic index poisoned | Low | Medium | Accepted | Candidate-only, provenance display, lexical baseline |
 | R-09 | Model provider retains prompts | Medium | Medium | Accepted if consented | Consent names retention unknown; local default |

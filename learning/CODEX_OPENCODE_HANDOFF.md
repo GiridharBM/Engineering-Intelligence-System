@@ -902,3 +902,27 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Verify:** `uv run --locked pytest -q` → **292 passed, 1 skipped**; `uv run --locked ruff check .` → **All checks passed!**; `ruff format --check .` → **95 files already formatted**; `uv run --locked mypy src` → **58 source files, 0 issues**; `uv run --locked eis privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` → built; `uv run --locked python scripts/verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**. Retry CI jobs `typecheck`/`security`/`lint`/`package`/`privacy` **passed**.
 
 **Risks:** full retry run not observed to `conclusion=success`; branch protection **unverified/needs GitHub admin**; hosted logs unavailable; old Gitleaks exact finding unknown; `gitleaks` not run locally; no revocation; M0.2 not complete; M1 not complete; no real Linux T2 evidence; no external audit anchoring; delegation not implemented.
+
+---
+
+## 2026-11-27 — OpenCode (full CI success + external audit-anchor interface; ADR-048)
+
+**Status:** verified
+
+**Context:** Read latest handoff, M0.2/M1 roadmap, ADR-036/041–047, audit-chain implementation, threat model, schema and audit tests. Queried GitHub Actions for latest pushed commit. No `.env`, live model calls, credentials, or secret output.
+
+**CI:** Latest pushed commit `df5847e` complete workflow run `45958723773` reached **`conclusion=success`** (full workflow, not just jobs). Branch protection endpoint still returns 401 without admin; protection remains unverified/needs GitHub settings.
+
+**Implemented — external audit anchoring interface (ADR-048):**
+- `src/eis/core/audit_anchor.py`: content-free `AuditAnchor`, `AnchorReceipt`, `AuditAnchorSink`, `AuditAnchorService`, and `AnchorEventStore`. `eis-audit-anchor-v1` binds `up_to_seq`, `head_hash`, `created_at_ms`, algorithm into `anchor_id`/`anchor_hash`; `receipt_hash` binds anchor to the external acknowledgement. No secret, credential, project content or payload text in anchors/receipts.
+- `create` verifies the full local chain, refuses empty chain, submits to the external sink, validates receipt, appends one content-free `audit_anchor_submitted` reference event with deterministic ID, and is idempotent on immediate replay. `verify` rechecks full chain, exactly the anchored prefix, head hash, anchor hash, receipt hash, local reference and external sink verification. Missing sink, external failure, receipt mismatch, chain mismatch, tampering/truncation all fail closed.
+- `AuditChainStore`: added `events_up_to`, `status_for`, `event_by_id`; `ChainStatus.head_time_ms` added with default 0. A local event is a receipt/reference, **not** external anchoring.
+- No real external service/backends configured; the interface is implemented/tested with an in-memory fake independently controlled sink. Real external retention and independent verification remain unverified.
+
+**Adversarial tests:** `tests/test_audit_anchor.py` (9 passed): creation/verification + content-free event, idempotent replay/forged receipt/mismatched anchor, stale anchor after later events, tampered chain, truncated chain, external submit failure, external verify failure, audit append failure + restart/retry idempotence, no backend refusal. No real service used.
+
+**Docs:** ADR-048 + index; roadmap M0.2/M1 status corrected (full CI success, ADR-047 cancellation/review no longer pending, ADR-048 interface vs unverified backend); security architecture, threat model (R-06 open), database schema (no local table called external anchor), learning 04/07/10, `README`, `CHANGELOG`; `verify_wheel.py` asserts `eis/core/audit_anchor.py`. Old append-only handoff entries were not rewritten.
+
+**Verify:** `uv run --locked pytest -q` → **301 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `uv run --locked ruff check .` → **All checks passed!**; `uv run --locked ruff format --check .` → **97 files already formatted**; `uv run --locked mypy src` → **59 source files, 0 issues**; `uv run --locked eis privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` → built; `uv run --locked python scripts/verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**.
+
+**Risks / remaining:** no configured/real independently controlled external anchor backend; no external retention evidence; branch protection unverified; no real Linux T2 container evidence; delegation and broader recovery not implemented; M0.2 not complete without verified branch protection despite green CI; M1 not complete without all acceptance criteria.

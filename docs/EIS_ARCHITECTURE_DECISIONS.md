@@ -58,6 +58,7 @@ An ADR is required for any change that alters a module boundary, a persisted sch
 | ADR-045 | Explicit, bounded recovery for durable read-only plans | Accepted |
 | ADR-046 | Bind model-proposed plan writes to human approval and execution evidence | Accepted |
 | ADR-047 | Atomic task cancellation and human-review continuation | Accepted |
+| ADR-048 | External audit-chain anchor interface | Accepted |
 
 ---
 
@@ -584,6 +585,24 @@ On Windows, T1 is **not** a security boundary and is labelled as such; untrusted
 - **Privacy.** Events contain IDs, states, tool names, `step_ref`, `error_code`, hashes; no goal, model text, plan arguments, file contents, tool results, note, root path, secret or digest exposure beyond existing approval digest fields.
 
 **Consequences.** This closes the local cancellation and `human_review` continuation gaps without expanding capabilities. Policy `task.cancel` and `task.run` must explicitly allow; default deny applies. API policy configuration is deployment-specific. No `task.cancel` reserved capability is added. M1 remains incomplete: delegation, broader approvals, write-proposal cancellation semantics beyond existing `approval_required`, T2 real Linux evidence, external audit anchoring, broad redaction and full recovery remain outstanding.
+
+---
+
+## ADR-048 — External audit-chain anchor interface
+
+**Status:** Accepted 2026-11-27.
+
+**Context.** ADR-036/ADR-038 made the local `audit_events` chain tamper-evident, but a privileged actor can drop triggers, rewrite the chain or truncate its tail. A local SQLite row or separate local file is not independent evidence. The project has no external anchoring service or credentials, so deployment must remain explicitly unverified while the interface and checkpoint semantics are testable.
+
+**Decision.**
+- Add `eis.core.audit_anchor`: a content-free `AuditAnchor` (`anchor_id`, `up_to_seq`, `head_hash`, `created_at_ms`, `anchor_hash`, algorithm `eis-audit-anchor-v1`) and `AnchorReceipt` (`external_ref`, `received_at_ms`, `receipt_hash`). `anchor_id` and `anchor_hash` bind the checkpoint prefix; `receipt_hash` binds the anchor to the external acknowledgement. Bodies are canonical JSON, SHA-256, sorted keys, no non-ASCII escaping. No secret, credential, project content, prompt, payload text or raw path appears in an anchor or receipt.
+- `AuditAnchorSink` is a narrow protocol for a separately controlled external system: `submit(anchor) -> AnchorReceipt` and `verify(anchor, receipt) -> bool`. No production backend is configured; `AuditAnchorService` fails closed with `anchor_backend_unavailable` when the sink is missing, on external submit/verify failure, on receipt mismatch or on any local chain defect.
+- `AuditAnchorService.create` verifies the entire local chain, refuses an empty chain, builds a checkpoint from `event_count`/`head_hash`, submits it, validates the receipt hash, and appends one `audit_anchor_submitted` event with a deterministic `event_id`. The local event is only a reference/receipt; the authoritative checkpoint must be retained by the external system. A committed anchor is idempotent: an immediate retry returns the same submission without resubmitting or appending a second event. A failed append leaves no local event; retry may resubmit the same anchor and returns the same external receipt.
+- `AuditAnchorService.verify` rechecks the whole local chain, verifies exactly the anchored prefix (`events_up_to(up_to_seq)`), compares its head hash to `head_hash`, recomputes `anchor_hash` and `receipt_hash`, requires the local reference event, and then requires the external sink to verify the receipt. Any mismatch raises `AuditIntegrityError`/`AnchorVerificationError`.
+- Tests use only an in-memory fake external sink. They cover creation/verification, content-free events, idempotent replay, forged receipts, mismatched anchors, historical anchors after later events, tampered/truncated chains, external failure, audit append failure + restart/retry and no-backend refusal.
+- No real external service is integrated or verified in this slice, and no local file or DB row is described as external anchoring. Deployment requires an independently controlled backend with its own retention and verification evidence.
+
+**Consequences.** Local tail truncation after an anchored prefix is detectable if the external service retains the checkpoint; before the first anchor it remains undetectable. A sink that does not enforce independent retention or replay protection gives no security benefit. The anchor event changes the chain head, so anchors are prefixes, not the current tip. External audit anchoring remains an unverified external requirement; M1 is not complete.
 
 ---
 

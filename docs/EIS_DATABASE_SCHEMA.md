@@ -579,14 +579,11 @@ canonical hash and every previous-hash link, and reports the first failure.
 
 Limitation: this is **tamper-evident, not tamper-proof**. An actor with direct
 database access can drop the triggers and rewrite or truncate the chain.
-Tail truncation is undetectable without the external `integrity_anchors`
-checkpoint, which is not implemented.
+Tail truncation remains undetectable until a checkpoint is retained by an independently controlled external service. The verified prefix/hash anchor interface is implemented in `eis.core.audit_anchor`; the local `audit_anchor_submitted` event is only a receipt/reference, not the external copy. No external backend is configured or verified.
 
 ### `integrity_anchors`
 
-Specified, not implemented.
-
-`id`, `up_to_seq`, `hash`, `created_at`, `external_ref` NULL.
+Specified, not implemented as a local table. Do not treat a local table or file as external anchoring. The tested interface uses `AuditAnchor`, `AnchorReceipt`, and `AuditAnchorSink` (see ADR-048).
 
 ### `exports`
 

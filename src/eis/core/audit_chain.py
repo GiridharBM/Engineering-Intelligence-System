@@ -59,6 +59,7 @@ class ChainStatus:
     head_hash: str
     failure: str | None = None
     failed_seq: int | None = None
+    head_time_ms: int = 0
 
 
 class AuditIntegrityError(RuntimeError):
@@ -124,6 +125,7 @@ def verify_chain(events: Iterable[AuditEvent]) -> ChainStatus:
         ok=True,
         event_count=len(ordered),
         head_hash=previous_hash,
+        head_time_ms=ordered[-1].occurred_at_ms if ordered else 0,
     )
 
 
