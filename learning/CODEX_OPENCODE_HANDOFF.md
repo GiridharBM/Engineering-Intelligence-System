@@ -1135,4 +1135,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Remaining M2:** read-only Git adapter; language/framework/build detection; manifest and lockfile parsers; persisted labels/exclusions; snapshot/profile provenance and stale-on-removal semantics; incremental rescan; project API; hosted/nightly 50k NFR-01 benchmark. **M2 is not complete.** M0.2 branch protection and real S3 Object Lock retention remain operator/admin requirements. Delegation is M5; SSE/dashboard is M10.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `46015815846` for commit `188085d` reached `status=completed`, **`conclusion=success`**: all **13/13 jobs** passed, including `Serve loopback smoke (real process)` and `T2 Linux container (real backend)`. The Ubuntu/macOS matrix ran the case-collision test; Windows skipped it as designed; the gated 50k benchmark remained skipped in routine CI. No real credential, provider/AWS call or cloud resource was used.
