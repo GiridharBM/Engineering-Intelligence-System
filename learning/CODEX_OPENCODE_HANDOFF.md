@@ -1025,4 +1025,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Risks / remaining:** this is mocked CLI evidence, not real independent-retention evidence. A real deployment still needs an operator-provisioned Object Lock bucket, an explicit COMPLIANCE/GOVERNANCE choice and duration, the documented IAM permissions without `s3:BypassGovernanceRetention`, and a real `eis anchor create` + `eis anchor verify` run with independently retained evidence. Branch protection still needs GitHub admin; delegation belongs to M5; M0.2/M1 remain incomplete.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `45992301520` for commit `ad24893` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No AWS job, credential, live AWS call or bucket was added to CI; the anchor CLI tests remain fake-sink only.
