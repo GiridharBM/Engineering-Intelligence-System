@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from eis import __version__
@@ -53,6 +56,39 @@ def test_provider_check_reports_configuration_without_the_key(monkeypatch) -> No
     assert f"base_url={OFFICIAL_BASE}" in result.output
     assert "api_key=set" in result.output
     assert FAKE_KEY not in result.output
+
+
+def test_ask_fake_runs_durable_plan_without_a_provider(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EIS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("EIS_CONFIG_DIR", str(tmp_path / "config"))
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "version": "m1-ask-fake-v1",
+                "default": "deny",
+                "rules": [
+                    {
+                        "id": "run",
+                        "principal": "agent:eis.primary",
+                        "action": "task.run",
+                        "resource": "global",
+                        "effect": "allow",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app, ["ask", "private-goal-marker", "--fake", "--policy-file", str(policy_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "state=blocked" in result.output
+    assert "stop_reason=human_review_required" in result.output
+    assert "private-goal-marker" not in result.output
 
 
 def test_doctor_reports_safe_configuration_error(monkeypatch) -> None:

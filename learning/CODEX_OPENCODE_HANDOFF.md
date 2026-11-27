@@ -1096,3 +1096,23 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Limits / risks:** the smoke verifies `/health` and one authenticated read-only route, not every API route; SSE and the wider API remain planned. No live provider/AWS evidence was produced. Real S3 Object Lock retention evidence, GitHub branch protection and delegation (M5) remain operator/admin requirements; M0.2/M1 remain incomplete.
 
 **Hosted result (appended after push):** run `46006698364` for commit `3f6c7a4` reached `status=completed`, **`conclusion=success`**: all **13/13 jobs** passed, including the new `Serve loopback smoke (real process)` job. That job launched the real `eis serve` subprocess on `127.0.0.1`, verified public `/health`, 401 without a token, 200 on the authenticated sessions route, non-loopback rejection and child cleanup. No token was printed and no provider/AWS call was made.
+
+---
+
+## 2026-11-27 — OpenCode (M1 Secure Agent Runtime acceptance audit)
+
+**Status:** acceptance audit complete; both M1 acceptance criteria verified; hosted result appended after push
+
+**Context:** Read the M1 objective/deliverables/acceptance criteria, roadmap, API specification, ADRs 038–050 and the latest handoff, then inspected the actual code and tests. No `.env` read, no live provider/AWS call, no cloud resource, no credential.
+
+**Matrix:** added [`docs/M1_ACCEPTANCE_MATRIX.md`](../docs/M1_ACCEPTANCE_MATRIX.md) with statuses and code/test/hosted evidence for: M1 acceptance criteria A1 (scripted fake-provider read→propose→approve→execute→complete) and A2 (process kill/resume without duplicate side effects); deliverables; required tests; SEC-01/02/03(partial)/06/07/09/10/11/13/17; DoD; scope reconciliation; and operator/admin requirements. Delegation is explicitly M5, SSE/dashboard M10, evidence artifacts later M4/M7; none are counted as M1 acceptance blockers.
+
+**Gaps closed:** added [`tests/test_m1_process_kill.py`](../tests/test_m1_process_kill.py), which runs the real plan in a child process, blocks inside the read-only tool, kills that OS process, resumes in a second process, proves the read body ran exactly once, and proves a third resume is a no-op; it also checks task/plan/step completion, audit-chain validity and one egress/model-call record. Added [`tests/test_cli.py`](../tests/test_cli.py) `test_ask_fake_runs_durable_plan_without_a_provider`, which exercises the real `eis ask --fake` CLI path with a temp DB/policy and asserts a durable blocked review state without printing the goal. Corrected stale M1 status in the roadmap, README and learning README: acceptance criteria are verified; delegation/M5 and SSE/M10 are out of M1 scope; real S3 retention and branch protection remain operator/admin items.
+
+**Verify (local):** full `pytest -q` → **392 passed, 2 skipped** (POSIX-only `openat` and gated hosted serve smoke); focused process-kill + `ask --fake` → **2 passed**; `ruff check .` → All checks passed; `ruff format --check .` → 106 files; `mypy src` → 61 files, 0 issues; `privacy: ok`; `pip-audit` → no known vulnerabilities (local `eis` skipped as not on PyPI); `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass; Markdown links 44 files / 293 links / 0 broken.
+
+**Verdict:** M1 acceptance criteria **A1 and A2: PASS**. No known incomplete M1 acceptance criterion. M1 is **not declared fully complete** while real external S3 Object Lock retention remains operator-unverified and M0.2 branch protection remains GitHub-admin-unverified; these are external requirements, not M1 acceptance failures. Delegation remains M5; SSE/dashboard remains M10.
+
+**Operator/admin requirements:** the operator must provision/designate an S3 general purpose bucket with Versioning + Object Lock, choose COMPLIANCE or GOVERNANCE and an explicit duration, grant the documented least-privilege IAM actions without `s3:BypassGovernanceRetention`, run `eis anchor status/create/verify`, and independently retain evidence. A GitHub admin must configure and verify branch protection. T2 evidence is hosted point-in-time runner evidence, not protection against a compromised runner/kernel.
+
+**Hosted result (appended after push):** pending.
