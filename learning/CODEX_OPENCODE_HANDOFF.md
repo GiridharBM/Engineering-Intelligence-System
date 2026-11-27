@@ -1061,4 +1061,4 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 
 **Limits / risks:** the rules are narrow and deterministic. Novel, encoded, split, truncated or otherwise unusual secrets can still pass, and credential-shaped ordinary text can be over-redacted. C3 classification, consent and the decision to trust a provider remain the primary controls; this is not complete DLP. No live provider or AWS evidence was produced. Operator-provisioned S3 Object Lock bucket/retention, real retention evidence and GitHub branch protection remain external requirements; delegation remains M5; M0.2/M1 remain incomplete.
 
-**Hosted result (appended after push):** pending.
+**Hosted result (appended after push):** run `45998372541` for commit `f8f2edd` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No provider or AWS secret, live provider/AWS call or cloud resource was added; redaction tests remain synthetic/source-level only.
