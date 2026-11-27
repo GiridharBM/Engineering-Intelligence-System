@@ -875,3 +875,11 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 - Markdown links → **43 files, 249 relative links, 0 broken**. No live model calls.
 
 **Risks / remaining:** `approval_required` cancellation intentionally not added; use digest-bound reject. `task.cancel` must be explicitly granted; default deny. No T2 real Linux host proof; no external audit anchoring; no delegation; M1 not complete; M0.2 GitHub CI + branch protection not verified.
+
+---
+
+## 2026-11-27 — OpenCode (GitHub CI + branch protection check after push)
+
+**Status:** blocked
+
+**Notes:** Pushed `main` to `https://github.com/GiridharBM/Engineering-Intelligence-System`. Commit `2ba8404` CI run `45956728610` completed **failure**. `lint`, `package`, `privacy`, 8/8 test jobs passed; `typecheck` failed on `uv run --locked mypy src` (not reproducible locally on Windows; local `uv run --locked mypy src` → `Success: no issues found in 58 source files`); `security` failed on `gitleaks/gitleaks-action` `Leaks detected`. Full job logs require admin; `gh` CLI absent. Branch-protection endpoint returned **401** without auth; branch protection cannot be verified/configured here. No `.env`, provider call, or secret disclosure.
