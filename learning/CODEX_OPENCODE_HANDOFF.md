@@ -928,3 +928,15 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Risks / remaining:** no configured/real independently controlled external anchor backend; no external retention evidence; branch protection unverified; no real Linux T2 container evidence; delegation and broader recovery not implemented; M0.2 not complete without verified branch protection despite green CI; M1 not complete without all acceptance criteria.
 
 **Follow-up CI result:** full workflow run `45962384940` for commit `7608b1a` reached **`conclusion=success`** (`status=completed`), not merely individual jobs passing.
+
+---
+
+## 2026-11-27 — OpenCode (authenticated audit-event browsing API)
+
+**Status:** verified
+
+**Context:** Read latest handoff, M1 roadmap, API spec, `audit_chain` core/storage, ADR-048, and existing API/storage patterns. No `.env`, live model calls, credentials or raw payload output.
+
+**Implemented:** `GET /api/v1/audit/events` requires the local bearer token and rejects unknown/repeated query fields (422). Only `limit` (1–100, default 50) and opaque `cursor` are accepted. Response items contain only `seq`, `occurred_at_ms`, `event_type`, `actor`, `subject_type`, `subject_id`, `decision`, `prev_hash`, `event_hash`; no payloads, paths, prompts, diffs, contents or credentials. Cursor is HMAC-signed with the local token and binds `after_seq`/`head_seq`/`head_hash`; tampered/malformed cursors return 422, cursors past the chain 409. Paging is stable while events are appended because the bound prefix is re-verified. Full chain status and requested prefix are verified on every page; corruption returns 503 and no page. Integrity status is included in every response. Added `tests/test_api_audit_events.py` (8 tests): auth, strict query/cursor validation, empty history, safe metadata, stable paging, tampered/stale cursor, corrupted full chain and corrupted prefix. API spec, roadmap, changelog, learning 03, README updated; old handoff entries not rewritten.
+
+**Verify:** focused `pytest -q tests/test_api_audit_events.py` → **8 passed**; full `uv run --locked pytest -q` → **309 passed, 1 skipped** (POSIX `openat`), 1 Starlette warning; `uv run --locked ruff check .` → **All checks passed!**; `uv run --locked ruff format --check .` → **98 files already formatted**; `uv run --locked mypy src` → **59 source files, 0 issues**; `uv run --locked eis privacy-check` → **privacy: ok**; `uv lock --check --offline` → exit 0; `uv build --offline` → built; `uv run --locked python scripts/verify_wheel.py` → **packaged resources ok**; Markdown links → **43 files, 248 relative links, 0 broken**. External anchor backend remains interface-only; T2 Linux evidence, delegation, branch protection and full M1 acceptance remain open.

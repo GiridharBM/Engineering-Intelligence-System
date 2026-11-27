@@ -4,13 +4,19 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import json
 import logging
 import os
+import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -135,6 +141,86 @@ class AuditVerifyResponse(BaseModel):
     event_count: int
     failed_seq: int | None
     failure: str | None
+
+
+class AuditEventSummary(BaseModel):
+    seq: int
+    occurred_at_ms: int
+    event_type: str
+    actor: str
+    subject_type: str
+    subject_id: str
+    decision: str | None
+    prev_hash: str
+    event_hash: str
+
+
+class AuditEventPage(BaseModel):
+    items: list[AuditEventSummary]
+    next_cursor: str | None
+    integrity: AuditVerifyResponse
+
+
+@dataclass(frozen=True)
+class _AuditCursor:
+    after_seq: int
+    head_seq: int
+    head_hash: str
+
+    def body(self) -> dict[str, object]:
+        return {
+            "after_seq": self.after_seq,
+            "head_hash": self.head_hash,
+            "head_seq": self.head_seq,
+            "v": 1,
+        }
+
+
+_CURSOR_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _b64encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _b64decode(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def _encode_cursor(cursor: _AuditCursor, key: str) -> str:
+    raw = json.dumps(cursor.body(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(key.encode("utf-8"), raw, hashlib.sha256).digest()
+    return f"{_b64encode(raw)}.{_b64encode(signature)}"
+
+
+def _decode_cursor(value: str, key: str) -> _AuditCursor:
+    if not _CURSOR_RE.fullmatch(value):
+        raise ValueError("invalid cursor encoding")
+    body, signature = value.split(".", 1)
+    raw = _b64decode(body)
+    expected = hmac.new(key.encode("utf-8"), raw, hashlib.sha256).digest()
+    if not hmac.compare_digest(expected, _b64decode(signature)):
+        raise ValueError("cursor signature mismatch")
+    payload = json.loads(raw)
+    if not isinstance(payload, dict) or set(payload) != {"after_seq", "head_seq", "head_hash", "v"}:
+        raise ValueError("invalid cursor fields")
+    if payload["v"] != 1:
+        raise ValueError("unsupported cursor version")
+    after, head = payload["after_seq"], payload["head_seq"]
+    if type(after) is not int or type(head) is not int or after < 0 or head < 1 or after > head:
+        raise ValueError("invalid cursor sequence")
+    if not isinstance(payload["head_hash"], str) or not _HASH_RE.fullmatch(payload["head_hash"]):
+        raise ValueError("invalid cursor head hash")
+    return _AuditCursor(after, head, payload["head_hash"])
+
+
+def _strict_audit_query(request: Request) -> None:
+    names = [name for name, _ in request.query_params.multi_items()]
+    if len(names) != len(set(names)):
+        raise HTTPException(status_code=422, detail="duplicate_query_parameter")
+    if not set(names) <= {"limit", "cursor"}:
+        raise HTTPException(status_code=422, detail="unexpected_query_parameter")
 
 
 RuntimeFactory = Callable[[], SessionTaskRuntime]
@@ -555,6 +641,66 @@ def create_app(
             event_count=audit.event_count,
             failed_seq=audit.failed_seq,
             failure=audit.failure,
+        )
+
+    @app.get(
+        "/api/v1/audit/events",
+        response_model=AuditEventPage,
+        dependencies=[Depends(authorize), Depends(_strict_audit_query)],
+    )
+    def browse_audit_events(
+        limit: int = Query(default=50, ge=1, le=100),
+        cursor: str | None = Query(default=None, max_length=512),
+    ) -> AuditEventPage:
+        audit = AuditChainStore(default_database(settings()))
+        status = audit.status()
+        if not status.ok:
+            raise HTTPException(status_code=503, detail="audit_chain_invalid")
+        if cursor is None:
+            after_seq, head_seq = 0, status.event_count
+            expected_head_hash = status.head_hash
+        else:
+            try:
+                decoded = _decode_cursor(cursor, expected_token())
+            except (ValueError, UnicodeError, json.JSONDecodeError):
+                raise HTTPException(status_code=422, detail="invalid_cursor") from None
+            if decoded.head_seq > status.event_count:
+                raise HTTPException(status_code=409, detail="stale_cursor")
+            after_seq, head_seq = decoded.after_seq, decoded.head_seq
+            expected_head_hash = decoded.head_hash
+        events = audit.events_up_to(head_seq)
+        prefix = audit.status_for(events)
+        if not prefix.ok or len(events) != head_seq or prefix.head_hash != expected_head_hash:
+            raise HTTPException(status_code=503, detail="audit_chain_invalid")
+        selected = [item for item in events if item.seq > after_seq][:limit]
+        next_cursor = None
+        if after_seq + len(selected) < head_seq:
+            next_cursor = _encode_cursor(
+                _AuditCursor(after_seq + len(selected), head_seq, expected_head_hash),
+                expected_token(),
+            )
+        return AuditEventPage(
+            items=[
+                AuditEventSummary(
+                    seq=item.seq,
+                    occurred_at_ms=item.occurred_at_ms,
+                    event_type=item.event_type,
+                    actor=item.actor,
+                    subject_type=item.subject_type,
+                    subject_id=item.subject_id,
+                    decision=item.decision,
+                    prev_hash=item.prev_hash,
+                    event_hash=item.event_hash,
+                )
+                for item in selected
+            ],
+            next_cursor=next_cursor,
+            integrity=AuditVerifyResponse(
+                ok=True,
+                event_count=head_seq,
+                failed_seq=None,
+                failure=None,
+            ),
         )
 
     return app

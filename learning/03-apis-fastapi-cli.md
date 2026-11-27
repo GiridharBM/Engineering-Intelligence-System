@@ -206,6 +206,7 @@ Secrets do not belong in configuration files. Provider keys come from environmen
 | TOML configuration precedence | Planned (ADR-027) |
 | Authenticated approval decision/execute + pending review + audit-verification routes | Implemented (M1 subset); digest-bound, fail-closed, retry recovers from durable `execution_runs` without repeating a write; route-level tests in `tests/test_api_approvals.py` |
 | Authenticated task cancellation + human-review continuation | `POST /api/v1/tasks/{id}/cancel`, `POST /api/v1/tasks/{id}/review/continue`; strict schema + policy; `tests/test_task_cancellation_review.py` |
+| Authenticated audit-event browsing | `GET /api/v1/audit/events`; bounded metadata-only pages, signed stable cursor, integrity status; `tests/test_api_audit_events.py` |
 | Authenticated project APIs, bootstrap and SSE | Planned (M1+) |
 | Dashboard and IDE integration | Planned (M10) |
 
