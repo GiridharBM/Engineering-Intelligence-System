@@ -91,6 +91,8 @@ Implemented in migration `0005_project_roots` as the M1 minimal durable root reg
 
 The M2 project-registry design adds labels, exclusions, scan timestamps and nested projects. That expansion must use a new migration and preserve existing registrations; it must not assume this minimal shape. Registration and removal are explicit local-user actions; no migration backfills roots from session project IDs.
 
+**M2 walker slice (2026-11-27): no schema change.** `eis project scan` and `eis.core.repo_walker` use per-invocation limits and exclusions and return in-memory, content-free metadata. They do not persist scan results, source contents, labels, exclusions or snapshots. Persisted project labels/exclusions, scan timestamps and the snapshot/profile model remain later M2 migrations; `0005_project_roots` is unchanged.
+
 ### `projects`
 
 Planned for M2; not implemented. The table below is the target shape and will reference the extended root registry.

@@ -118,7 +118,9 @@ Implemented protections:
 - POSIX reads walk from a verified root descriptor with `O_NOFOLLOW`; Windows checks every component for links/reparse points and compares the opened handle identity, then re-checks the root after the read. A narrow Windows swap window remains because the standard library has no root-relative `openat`; it is documented, not claimed as solved;
 - a moved, renamed or replaced root fails closed with a sanitized error code.
 
-The current privacy guard is a **repository** boundary, not a runtime file-access boundary. It scans tracked and untracked candidate files for private path patterns. The runtime path guard covers only the four read-only tools described below.
+The M2 `eis project scan <id>` walker reuses the same root identity and safe-access primitives. It resolves only a registered project ID, lists metadata without reading file contents, skips symlinks/junctions, verifies the root before and after, and applies default plus per-invocation exclusions (`.git`, secret/cache/build names, `.env*`, binary/secret suffixes). Deterministic file-count, depth, total-byte and per-directory caps report an explicit incomplete reason; case-fold collisions are reported rather than merged. Results contain relative paths, sizes and counts only; no source content is persisted. A local 50k metadata scan met NFR-01, but it is not yet a hosted nightly benchmark. The documented Windows link/identity swap window and the per-directory cap remain residual limits.
+
+The current privacy guard is a **repository** boundary, not a runtime file-access boundary. It scans tracked and untracked candidate files for private path patterns. The runtime path guard covers the four read-only tools described below plus the M2 metadata walker.
 
 ## Redaction
 

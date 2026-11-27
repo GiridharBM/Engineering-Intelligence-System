@@ -1116,3 +1116,23 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Operator/admin requirements:** the operator must provision/designate an S3 general purpose bucket with Versioning + Object Lock, choose COMPLIANCE or GOVERNANCE and an explicit duration, grant the documented least-privilege IAM actions without `s3:BypassGovernanceRetention`, run `eis anchor status/create/verify`, and independently retain evidence. A GitHub admin must configure and verify branch protection. T2 evidence is hosted point-in-time runner evidence, not protection against a compromised runner/kernel.
 
 **Hosted result (appended after push):** run `46011760687` for commit `4aeb585` reached `status=completed`, **`conclusion=success`**: all **13/13 jobs** passed, including `Serve loopback smoke (real process)` and `T2 Linux container (real backend)`. No real credential, provider/AWS call or cloud resource was used.
+
+---
+
+## 2026-11-27 — OpenCode (M2 first slice: bounded repository walker)
+
+**Status:** M2 first slice implemented and locally verified; hosted result appended after push
+
+**Context:** Read the M1 acceptance matrix, M2 roadmap, existing `project_roots`/`safe_access`/read-only tools, security/threat docs and latest handoff. No `.env` read, no live model/AWS call, no cloud resource, no branch-protection change.
+
+**Documentation reconciliation:** README test count corrected from 391 to the verified current **401 passed, 4 skipped**. README and M1 matrix now state explicitly that **M1 A1/A2 software acceptance is verified**, while **real S3 Object Lock retention** and **GitHub branch protection** remain operator/admin verification items, not M1 software-acceptance failures.
+
+**Implemented:** `eis.core.repo_walker.walk_project(repository, project_id, config)` and `eis project scan <project_id>`. Roots resolve only through `ProjectRootRepository`; the walker uses `safe_access.list_directory`/`verify_root` before and after, never reads file contents, skips symlinks/junctions, and always excludes `.git`, `.eis`, secret/cache/build names, `.env*`, and binary/secret suffixes. Per-invocation name/relative-path globs are additive and case-insensitive. Deterministic limits: `max_files` default 10,000 (cap 100,000), `max_depth` default 32 (cap 128), `max_total_bytes` default 256 MiB (cap 8 GiB) over admitted file sizes, and a 5,000-entry per-directory cap. Results contain relative POSIX paths, sizes, directory count, total bytes, excluded count, limit reason and case-collision groups only; no source content. No migration was added; per-project persisted labels/exclusions/scan timestamps/snapshots remain later M2 work.
+
+**Tests:** `tests/test_repo_walker.py` covers registered-root resolution, default/per-invocation exclusions, `.git`/`.env`/secret/cache/build skipping, symlink escape, missing/replaced/unknown roots, file-count/depth/byte limits, deterministic sorted output, case-collision reporting, CLI summary safety (no absolute root or content), and a gated 50k benchmark. Local 50k metadata scan: **50,000 files in 1.016 s** (fixture creation excluded), inside NFR-01's 60 s target; this is local benchmark evidence, not a hosted nightly gate. The case-collision test skips on case-insensitive filesystems; the 50k test requires `EIS_RUN_PERF=1`.
+
+**Verify (local):** full `pytest -q` → **401 passed, 4 skipped** (POSIX-only `openat`, case-sensitive FS, gated 50k benchmark, gated hosted serve smoke); `ruff check .` → All checks passed; `ruff format --check .` → 108 files; `mypy src` → 62 files, 0 issues; `privacy: ok`; `pip-audit` → no known vulnerabilities (local `eis` skipped as not on PyPI); `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass (`repo_walker.py` asserted); Markdown links 44 files / 297 links / 0 broken.
+
+**Remaining M2:** read-only Git adapter; language/framework/build detection; manifest and lockfile parsers; persisted labels/exclusions; snapshot/profile provenance and stale-on-removal semantics; incremental rescan; project API; hosted/nightly 50k NFR-01 benchmark. **M2 is not complete.** M0.2 branch protection and real S3 Object Lock retention remain operator/admin requirements. Delegation is M5; SSE/dashboard is M10.
+
+**Hosted result (appended after push):** pending.

@@ -142,6 +142,8 @@ Current commands:
 | `eis session ...` | Creates, lists, resumes or closes durable sessions |
 | `eis task ...` | Submits/resumes a one-completion task and shows content-free status |
 | `eis task invoke-tool ... --call-json ...` | Explicitly invokes one strict, registered read-only project tool through policy; output defaults to hashes/status only |
+| `eis project register/list/remove` | Explicitly registers, lists or removes local project roots without printing absolute paths |
+| `eis project scan <id>` | Bounded, read-only metadata walk of one registered root; default/per-invocation exclusions, deterministic limits and an incomplete reason; no file contents printed |
 | `eis consent list` / `grant` / `revoke` | Manages durable provider consent |
 | `eis audit verify` | Verifies the audit chain without printing payloads |
 | `eis privacy-check` | Scans candidate repository files for private paths, runtime data and secret-shaped values |
@@ -207,7 +209,8 @@ Secrets do not belong in configuration files. Provider keys come from environmen
 | Authenticated approval decision/execute + pending review + audit-verification routes | Implemented (M1 subset); digest-bound, fail-closed, retry recovers from durable `execution_runs` without repeating a write; route-level tests in `tests/test_api_approvals.py` |
 | Authenticated task cancellation + human-review continuation | `POST /api/v1/tasks/{id}/cancel`, `POST /api/v1/tasks/{id}/review/continue`; strict schema + policy; `tests/test_task_cancellation_review.py` |
 | Authenticated audit-event browsing | `GET /api/v1/audit/events`; bounded metadata-only pages, signed stable cursor, integrity status; `tests/test_api_audit_events.py` |
-| Authenticated project APIs, bootstrap and SSE | Planned (M1+) |
+| M2 bounded project scan | Implemented: registry-only root resolution, symlink/junction skipping, exclusions, file/depth/byte/per-directory limits, case-collision reporting and content-free summary; profiles/snapshots remain planned |
+| Authenticated project APIs, bootstrap and SSE | Planned (M1+/M10) |
 | Dashboard and IDE integration | Planned (M10) |
 
 Next: [SQLite and the memory model](04-sqlite-and-memory.md).

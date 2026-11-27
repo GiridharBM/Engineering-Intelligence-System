@@ -61,6 +61,7 @@ An ADR is required for any change that alters a module boundary, a persisted sch
 | ADR-048 | External audit-chain anchor interface | Accepted |
 | ADR-049 | Fail-closed recovery for consumed approvals | Accepted |
 | ADR-050 | Optional S3 Object Lock audit-anchor sink | Accepted |
+| ADR-051 | Bounded read-only repository walker for M2 | Accepted |
 
 ---
 
@@ -649,6 +650,25 @@ On Windows, T1 is **not** a security boundary and is labelled as such; untrusted
 - Tests use injected fake clients and cover idempotent replay, altered bodies/metadata/mode/retention, a wrong receipt version, wrong/bucket-owner account, missing Object Lock or versioning, insufficient or missing retention, service errors with secret-shaped markers, config validation and CLI fail-closed output. There is no live AWS call, bucket or credential in the test suite.
 
 **Consequences.** A mocked adapter test is not real independent-retention evidence. Real evidence requires an operator to provision an Object Lock bucket, grant the listed permissions without the governance bypass, configure an explicit retention mode and duration, run `eis anchor status`, and then run `eis anchor create` and `eis anchor verify` for at least one anchor and independently retain the result. COMPLIANCE retention is irreversible until expiry, so the duration choice is an operational commitment and cannot be shortened. GOVERNANCE is bypassable and therefore weaker. The adapter does not defend against a compromised AWS account, credential theft, a deleted AWS account, or loss of KMS keys used for encryption; Object Lock does not protect against account deletion or key loss. Object Lock is regional and incurs S3 storage and request charges. M1 remains incomplete until a real backend is provisioned and its independent retention is verified.
+
+---
+
+## ADR-051 — Bounded read-only repository walker for M2
+
+**Status:** Accepted 2026-11-27.
+
+**Context.** M2 needs safe project discovery and profiling, but the M1 registry only provides explicit root registration, canonical identity and race-resistant read-only access. There was no bounded tree walker, no configurable exclusion layer and no scan-incompleteness signal. The first M2 slice must add discovery without reading source contents, without accepting a caller/model root path and without a schema migration.
+
+**Decision.**
+- Add `eis.core.repo_walker.walk_project(repository, project_id, config)`. The only root input is a project ID resolved through `ProjectRootRepository`; no absolute path is accepted from a caller or model output.
+- Walk metadata through `safe_access.list_directory` and verify the root identity with `safe_access.verify_root` before and after the scan. The safe-access layer skips symlinks and junctions and never follows a link outside the registered root. The walker never calls `read_file`; source contents are not read or returned.
+- Always exclude `.git` internals, `.eis`, common secret directories/names, `.env*`, binary/secret suffixes and common cache/build-output directories. Callers may add case-insensitive name or POSIX-relative glob patterns per invocation. Unsafe entry names (separators, `.`/`..`, control characters) are skipped.
+- Apply deterministic limits: `max_files` (default 10,000; cap 100,000), `max_depth` (default 32; cap 128), `max_total_bytes` (default 256 MiB; cap 8 GiB, measured as the sum of admitted file sizes) and a 5,000-entry per-directory cap. A result sets `truncated` and exactly one `limit_reason` (`file_count`, `depth`, `bytes` or `entry_limit`) when incomplete, so callers cannot mistake a partial scan for a complete one.
+- Return content-free metadata only: project ID, sorted relative POSIX paths, kinds, sizes, directory count, total admitted bytes, excluded count, case-collision groups and limits. Case-fold collisions are reported, never silently merged. No source text, hashes of source text or absolute paths are returned.
+- Expose `eis project scan <project_id>` with limit and repeatable `--exclude` options. The CLI prints only summary counters and the limit reason; it does not print absolute roots or file contents.
+- Do not add a database migration in this slice. Limits and exclusions are per invocation. Persisted labels, exclusions, scan timestamps, snapshots and profiles remain later M2 work and must use a new migration without rewriting `0005_project_roots`.
+
+**Consequences.** This closes the first M2 discovery slice without expanding M1 tools or M3/M5/M10 scope. The scan is metadata-only, so language/framework/build detection, manifest and lockfile parsing, the read-only Git adapter, incremental rescan, profile provenance and snapshot staleness remain M2 work. A removed or replaced root fails closed rather than returning partial data. The per-directory cap can mark a very wide flat directory incomplete. On Windows the documented `safe_access` identity/link swap window still applies. A local 50k-file fixture scan completed in 1.016 s (fixture creation excluded), well inside NFR-01's 60 s target; this is local benchmark evidence, not a hosted nightly benchmark. M2 is not complete.
 
 ---
 

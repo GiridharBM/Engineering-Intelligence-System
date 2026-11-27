@@ -26,7 +26,7 @@ Scope rule: only M1 acceptance criteria and the deliverables/tests/security cont
 | D2 | `eis ask` with fake provider | **Verified** | [`tests/test_cli.py`](../tests/test_cli.py) `test_ask_fake_runs_durable_plan_without_a_provider` runs the real CLI path with a temporary DB/policy and asserts the durable blocked review state without printing the goal; [`tests/test_model_loop.py`](../tests/test_model_loop.py) covers the bounded fake-provider loop. |
 | D3 | Policy files | **Verified** | `policies/default.json`; [`tests/test_policy_baseline.py`](../tests/test_policy_baseline.py), [`tests/test_policy_engine.py`](../tests/test_policy_engine.py), [`tests/test_policy_persistence.py`](../tests/test_policy_persistence.py). |
 | D4 | Schema v1 / migrations | **Verified** | `src/eis/storage/migrations/versions/0001`–`0010`; [`tests/test_storage.py`](../tests/test_storage.py); wheel content check. |
-| D5 | Tests | **Verified** | Full local suite: **392 passed, 2 skipped**; hosted CI: **13/13 jobs** (see handoff for exact run IDs). |
+| D5 | Tests | **Verified** | Full local suite at the M1 acceptance audit: **392 passed, 2 skipped**; current repository suite (including later M2 walker tests) is **401 passed, 4 skipped**. Hosted CI: **13/13 jobs** (see handoff for exact run IDs). |
 
 ## 3. Required M1 tests
 

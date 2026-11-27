@@ -129,11 +129,13 @@ Hard dependencies: M1 → everything; M2 → M3; M3 → M5; M4 → M8; M6 → M7
 
 **M1 predecessor.** Migration `0005_project_roots` already provides explicit root registration, canonical path/identity persistence, overlap/reserved/link validation and content-free audit events. M2 extends that minimal registry with labels, exclusions, nested projects, scanning and profiles through a new migration; it does not replace registrations implicitly.
 
+**First slice implemented (2026-11-27).** `eis.core.repo_walker` and `eis project scan` provide a bounded, metadata-only walk of an explicitly registered root. The walker resolves only a project ID through the registry, verifies root identity before and after, skips symlinks/junctions, applies default plus per-invocation exclusions, and reports deterministic file-count, depth, byte and per-directory limits with an explicit incomplete reason. It returns relative paths/sizes/counts and case-collision groups only; it never reads or returns source contents. No migration was added because limits/exclusions are per invocation. **M2 remains in progress:** read-only Git adapter, language/framework/build detection, manifest/lockfile parsers, persisted labels/exclusions, snapshot/profile provenance and staleness, incremental rescan and a hosted 50k NFR-01 benchmark remain.
+
 **Tasks.** Root configuration and validation; exclusion engine; Git adapter (read-only); directory walker; language/framework/build detection; manifest and lockfile parsers; snapshot model; incremental rescan; project CLI/API; root symlink/junction protections.
 
-**Deliverables.** `eis project add/list/scan`, profiles with provenance, snapshot history.
+**Deliverables.** `eis project register/list/remove/scan`, profiles with provenance, snapshot history.
 
-**Tests.** Fixture monorepo; symlink escape; case collision; 50k-file performance; profile accuracy on 10 synthetic projects; exclusion effectiveness.
+**Tests.** Fixture monorepo; symlink escape; case collision; 50k-file performance; profile accuracy on 10 synthetic projects; exclusion effectiveness. First slice: [`tests/test_repo_walker.py`](../tests/test_repo_walker.py) covers registered-root resolution, exclusions, symlink escape, missing/replaced roots, file/depth/byte limits, deterministic output, case collisions, CLI summary safety and a gated 50k benchmark.
 
 **Security.** No reads outside roots; `.git` internals excluded except via Git adapter; credentials in remotes stripped; scan budget.
 

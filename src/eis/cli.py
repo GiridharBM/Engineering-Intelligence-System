@@ -45,6 +45,7 @@ from eis.core.execution import ExecutionDenied, ExecutionGateway
 from eis.core.policy_service import PolicyService
 from eis.core.project_roots import ProjectRootError, root_status
 from eis.core.project_tools import ReadOnlyProjectTools, ToolRequestError, parse_tool_call
+from eis.core.repo_walker import WalkConfig, WalkError, walk_project
 from eis.core.runtime import (
     PlanRecord,
     PlanStepRecord,
@@ -83,7 +84,10 @@ approval_app = typer.Typer(
 )
 session_app = typer.Typer(no_args_is_help=True, help="Create and manage durable sessions.")
 task_app = typer.Typer(no_args_is_help=True, help="Submit and inspect durable tasks.")
-project_app = typer.Typer(no_args_is_help=True, help="Register explicit local project roots.")
+project_app = typer.Typer(
+    no_args_is_help=True,
+    help="Register, inspect and scan explicit local project roots.",
+)
 plan_app = typer.Typer(no_args_is_help=True, help="Run and inspect bounded task plans.")
 app.add_typer(consent_app, name="consent")
 app.add_typer(audit_app, name="audit")
@@ -618,6 +622,46 @@ def project_remove(project_id: str = typer.Argument(...)) -> None:
         typer.echo(f"project_error: not_registered: {project_id}", err=True)
         raise typer.Exit(1)
     typer.echo(f"project_id={project_id} status=removed")
+
+
+@project_app.command("scan")
+def project_scan(
+    project_id: str = typer.Argument(...),
+    max_files: int = typer.Option(10_000, min=1, max=100_000),
+    max_depth: int = typer.Option(32, min=0, max=128),
+    max_bytes: int = typer.Option(256 * 1024 * 1024, min=0, max=8 * 1024 * 1024 * 1024),
+    exclude: list[str] = typer.Option(  # noqa: B008
+        [],
+        "--exclude",
+        help="Name or POSIX relative-path glob to exclude; repeatable.",
+    ),
+) -> None:
+    """Run a bounded, read-only metadata scan of one registered root."""
+    try:
+        result = walk_project(
+            _project_store(),
+            project_id,
+            WalkConfig(
+                max_files=max_files,
+                max_depth=max_depth,
+                max_total_bytes=max_bytes,
+                exclude_patterns=tuple(exclude),
+            ),
+        )
+    except WalkError as exc:
+        typer.echo(f"project_error: {exc.code}", err=True)
+        raise typer.Exit(1) from None
+    except ValueError:
+        typer.echo("project_error: invalid_scan_config", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(
+        f"project_id={result.project_id} "
+        f"scan={'incomplete' if result.truncated else 'complete'} "
+        f"files={result.file_count} directories={result.directories} "
+        f"total_bytes={result.total_bytes} excluded={result.excluded} "
+        f"case_collisions={len(result.case_collisions)} "
+        f"limit_reason={result.limit_reason or 'none'}"
+    )
 
 
 @task_app.command("submit")

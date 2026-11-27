@@ -161,6 +161,7 @@ The database never becomes the source of code, and Obsidian never becomes the da
 | Sessions/tasks and lifecycle audit | Implemented in migration 0004; messages planned |
 | Durable task plans and ordered steps | Implemented in migration 0006 (ADR-043); hashes, statuses and guarded transitions only |
 | Read-only tool audit events | Implemented in hash chain; no separate tool-call projection |
+| M2 repository walker | In-memory metadata-only scan; no schema migration; persisted labels/exclusions/scan timestamps/snapshots remain planned |
 | Full domain schema, repositories, retention jobs | Planned for M1/M3 |
 | FTS5 index and ranking | Planned for M3 |
 | Incident reuse and adaptation | Planned for M3 |

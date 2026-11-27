@@ -130,6 +130,14 @@ Pipeline: **detect → classify → redact → store reference → audit**.
 
 Limitations: pattern redaction is heuristic and narrow. It can miss novel, encoded, split or truncated secrets, and it can over-redact credential-shaped ordinary text. Therefore C3 data is *blocked by classification* from model context, not merely filtered. High-entropy false positives are reported as warnings, not silently dropped. No regex rule set substitutes for classification, consent and the provider trust decision.
 
+### 7.1 M2 project discovery and walking
+
+`eis.core.repo_walker` is the first M2 discovery slice. It accepts only a project ID and resolves the root through the durable `ProjectRootRepository`; no caller or model supplies a filesystem path. It lists metadata through `safe_access.list_directory` and verifies the root identity before and after the scan. Symlinks and junctions are skipped fail-closed by the safe-access layer, so a link cannot redirect the walk outside the registered root. The walker never calls `read_file`: source contents are not read, returned or persisted.
+
+Default exclusions cover `.git` internals, `.eis`, common secret directories/names, `.env*`, binary/secret suffixes and common cache/build outputs. Per-invocation name or relative-path globs are additive and matched case-insensitively. Deterministic limits cover admitted file count, maximum depth, total admitted file size and a per-directory entry cap; an incomplete scan reports exactly one `limit_reason`. Results contain relative POSIX paths, sizes, counts, exclusion totals and case-fold collision groups only. Case collisions are reported, never silently merged.
+
+Residual risks: the documented Windows `safe_access` link/identity swap window still applies; a very wide flat directory can hit the per-directory cap and be reported incomplete; source stored behind skipped symlinks is not followed (safe but intentionally omitted); and scan results remain local metadata, not a content profile. Persisted labels, exclusions, scan timestamps and snapshots remain later M2 work. The local 50k metadata scan benchmark met NFR-01, but it is local evidence, not a hosted nightly gate.
+
 ## 8. Prompt-Injection Resistance (defence in depth)
 
 1. **Authority separation.** The model has no capability; it emits intents that policy evaluates.

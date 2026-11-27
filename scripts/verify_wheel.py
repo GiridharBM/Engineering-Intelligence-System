@@ -26,6 +26,7 @@ REQUIRED = (
     "eis/core/project_roots.py",
     "eis/core/safe_access.py",
     "eis/core/project_tools.py",
+    "eis/core/repo_walker.py",
     "eis/core/sandbox.py",
     "eis/core/runtime.py",
     "eis/core/model_envelope.py",

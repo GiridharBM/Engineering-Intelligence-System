@@ -86,9 +86,12 @@ B7 Evidence boundary: workspace <-> append-only ledger
 | Symlink/junction escape | Repo contains link to `<user-home>` | Reject link/reparse components instead of following them |
 | TOCTOU | Path swapped between check and read | POSIX descriptor walk with `O_NOFOLLOW`; Windows opened-handle identity comparison and post-read re-check |
 | Root substitution | Registered directory replaced or moved after registration | Canonical path plus filesystem identity check on every access; fail closed |
-| Case collision (Windows) | `Secrets.txt` vs `secrets.txt` | Case-insensitive normalisation for containment |
+| Case collision (Windows) | `Secrets.txt` vs `secrets.txt` | Case-insensitive normalisation for containment; walker reports case-fold collision groups instead of merging them |
 | UNC/device path | `<device-path>` (for example a global-root device prefix) | Reject non-drive, non-relative paths; allowlist prefixes |
 | Mass exfiltration | Recursive read of all projects | Per-task read budget, project scope binding |
+| M2 walker escape | Registered repo contains a directory link to an outside tree | Walker uses `safe_access.list_directory`; links/reparse points skipped; root identity verified before and after; no absolute path input |
+| M2 scan exhaustion | 50k files, very deep tree or a wide directory | Deterministic file-count, depth, byte and per-directory caps; explicit incomplete reason; metadata-only walk |
+| M2 secret exposure by walking | `.git`, `.env`, secret/cache/build directories in the listing | Default exclusions plus per-invocation patterns; no file-content reads; results are content-free metadata |
 
 ### B3 — Model boundary
 
@@ -248,6 +251,7 @@ Goal: evolve a benign skill into a privileged one
 |---|---|---|
 | Policy matrix | Table-driven unit tests for every capability and resource type | PR |
 | Path escape | Fixture with traversal, symlink, junction, UNC, case collision, moved/replaced root, file swap during read | PR |
+| M2 walker bounds/exclusions | Synthetic tree with links, reserved/secret dirs, case collisions, file/depth/byte caps, missing/replaced root; gated 50k benchmark | PR; 50k benchmark local/on demand |
 | Injection corpus | Synthetic repos with hidden/visible instructions in 10+ locations | PR |
 | Approval binding | Mutate each bound field after approval | PR |
 | Sandbox limits | CPU, memory, PIDs, output, timeout, process tree kill | Nightly |
