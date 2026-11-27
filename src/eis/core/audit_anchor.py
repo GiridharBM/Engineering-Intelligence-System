@@ -252,11 +252,34 @@ class AuditAnchorService:
         ):
             raise AnchorVerificationError("receipt hash mismatch")
         event = self._events.event_by_id(f"anchor_{anchor.anchor_id}")
-        if event is None or event.payload.get("external_ref") != receipt.external_ref:
+        if (
+            event is None
+            or event.payload.get("external_ref") != receipt.external_ref
+            or event.payload.get("external_version") != receipt.external_version
+            or event.payload.get("receipt_hash") != receipt.receipt_hash
+        ):
             raise AnchorVerificationError("anchor reference is not recorded")
         if not sink.verify(anchor, receipt):
             raise AnchorVerificationError("external anchor verification failed")
         return True
+
+    def verify_recorded(self, anchor_id: str) -> AnchorSubmission:
+        """Reconstruct a recorded checkpoint from its audit event and verify it."""
+        if not ANCHOR_ID_RE.fullmatch(anchor_id):
+            raise AnchorVerificationError("anchor_id_invalid")
+        event = self._events.event_by_id(f"anchor_{anchor_id}")
+        if (
+            event is None
+            or event.event_type != "audit_anchor_submitted"
+            or event.subject_id != anchor_id
+        ):
+            raise AnchorVerificationError("anchor_not_found")
+        try:
+            submission = _submission_from_event(event, _anchor_from_event(event))
+        except (KeyError, TypeError, ValueError):
+            raise AnchorVerificationError("anchor_event_invalid") from None
+        self.verify(submission)
+        return submission
 
 
 def _submission_from_event(event: AuditEvent, anchor: AuditAnchor) -> AnchorSubmission:

@@ -34,7 +34,11 @@ from eis.config import (
 )
 from eis.core.api_auth import load_or_create_token, rotate_token
 from eis.core.approvals import ApprovalError
-from eis.core.audit_anchor import AnchorUnavailable
+from eis.core.audit_anchor import (
+    AnchorUnavailable,
+    AnchorVerificationError,
+    AuditAnchorService,
+)
 from eis.core.audit_anchor_s3 import build_s3_object_lock_sink, load_s3_object_lock_config
 from eis.core.audit_chain import AuditIntegrityError
 from eis.core.execution import ExecutionDenied, ExecutionGateway
@@ -71,7 +75,9 @@ from eis.storage.sessions import SessionTaskStore
 app = typer.Typer(no_args_is_help=True, help="Local-first engineering intelligence.")
 consent_app = typer.Typer(no_args_is_help=True, help="Manage durable provider consent.")
 audit_app = typer.Typer(no_args_is_help=True, help="Inspect the tamper-evident audit chain.")
-anchor_app = typer.Typer(no_args_is_help=True, help="Inspect external audit-anchor configuration.")
+anchor_app = typer.Typer(
+    no_args_is_help=True, help="Inspect, create and verify external audit checkpoints."
+)
 approval_app = typer.Typer(
     no_args_is_help=True, help="Review and manage delegated write approvals."
 )
@@ -265,6 +271,75 @@ def anchor_status() -> None:
         typer.echo(f"preflight=failed reason={exc}", err=True)
         raise typer.Exit(1) from exc
     typer.echo("preflight=ok")
+
+
+def _anchor_service() -> AuditAnchorService:
+    config = load_s3_object_lock_config()
+    if config is None:
+        raise AnchorUnavailable("anchor_backend_unavailable")
+    settings = load_settings(require_provider=False)
+    try:
+        events = AuditChainStore(default_database(settings))
+    except Exception:
+        raise AnchorUnavailable("anchor_store_unavailable") from None
+    return AuditAnchorService(events=events, sink=build_s3_object_lock_sink(config))
+
+
+def _anchor_failure(operation: str, exc: Exception) -> None:
+    if isinstance(exc, AuditIntegrityError):
+        typer.echo(f"{operation}=failed reason=audit_integrity failure={exc}", err=True)
+    elif isinstance(exc, (AnchorUnavailable, AnchorVerificationError)):
+        typer.echo(f"{operation}=failed reason={exc}", err=True)
+    else:
+        typer.echo(f"{operation}=failed reason=configuration_error detail={exc}", err=True)
+
+
+@anchor_app.command("create")
+def anchor_create() -> None:
+    """Create and retain one content-free checkpoint; operator-triggered only."""
+    try:
+        submission = _anchor_service().create(actor="cli")
+    except (
+        AnchorUnavailable,
+        AnchorVerificationError,
+        AuditIntegrityError,
+        ConfigurationError,
+    ) as exc:
+        _anchor_failure("anchor_create", exc)
+        raise typer.Exit(1) from exc
+    anchor, receipt = submission.anchor, submission.receipt
+    typer.echo("anchor_create=ok")
+    typer.echo(f"anchor_id={anchor.anchor_id}")
+    typer.echo(f"up_to_seq={anchor.up_to_seq}")
+    typer.echo(f"anchor_hash={anchor.anchor_hash}")
+    typer.echo(f"created_at_ms={anchor.created_at_ms}")
+    typer.echo(f"external_ref={receipt.external_ref}")
+    typer.echo(f"external_version={receipt.external_version}")
+    typer.echo(f"received_at_ms={receipt.received_at_ms}")
+    typer.echo(f"receipt_hash={receipt.receipt_hash}")
+
+
+@anchor_app.command("verify")
+def anchor_verify(anchor_id: str = typer.Argument(..., help="Recorded anchor ID.")) -> None:
+    """Verify a recorded checkpoint against the local chain and external object."""
+    try:
+        submission = _anchor_service().verify_recorded(anchor_id)
+    except (
+        AnchorUnavailable,
+        AnchorVerificationError,
+        AuditIntegrityError,
+        ConfigurationError,
+    ) as exc:
+        _anchor_failure("anchor_verify", exc)
+        raise typer.Exit(1) from exc
+    anchor, receipt = submission.anchor, submission.receipt
+    typer.echo("anchor_verify=ok")
+    typer.echo(f"anchor_id={anchor.anchor_id}")
+    typer.echo(f"up_to_seq={anchor.up_to_seq}")
+    typer.echo(f"anchor_hash={anchor.anchor_hash}")
+    typer.echo(f"external_ref={receipt.external_ref}")
+    typer.echo(f"external_version={receipt.external_version}")
+    typer.echo(f"receipt_hash={receipt.receipt_hash}")
 
 
 def _consent_store() -> ConsentStore:

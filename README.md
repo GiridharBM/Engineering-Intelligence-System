@@ -162,6 +162,14 @@ An optional S3 Object Lock sink can retain content-free checkpoints in a pre-exi
 
    Credentials are resolved only through boto3's standard AWS provider chain. EIS never accepts, stores, prints or logs access keys.
 4. Run `uv run eis anchor status`. It prints the non-secret settings and `preflight=ok` only when the expected account owns the bucket and both versioning and Object Lock are enabled. It exits non-zero otherwise.
+5. Create and verify anchors explicitly:
+
+   ```powershell
+   uv run eis anchor create
+   uv run eis anchor verify <anchor_id>
+   ```
+
+   Anchoring is operator-triggered only: no scheduler and no automatic network call is added. `create` verifies the local chain, submits the canonical content-free checkpoint through `AuditAnchorService`, and prints only safe checkpoint/receipt metadata. `verify` reconstructs the recorded anchor and receipt from the local content-free audit event, rechecks the local chain prefix, and verifies the exact external object version and retention. Missing configuration or SDK, an unknown/invalid anchor ID, a corrupted local chain, a tampered receipt/version, insufficient retention, or an unavailable S3 service exits nonzero without printing payloads or credentials.
 
 **Retention choice is a commitment.** COMPLIANCE retention cannot be shortened or deleted before expiry by any user, including the AWS account root user; deleting the AWS account is the only early removal. GOVERNANCE retention can be bypassed by any principal holding `s3:BypassGovernanceRetention`, so it is materially weaker. Do not grant that permission to the sink principal or any role that can assume it.
 

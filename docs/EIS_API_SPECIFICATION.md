@@ -268,8 +268,11 @@ Audit payloads are redacted; the chain fields are always present. `GET /api/v1/a
 | `eis report readiness <project>` | `POST /reports` |
 | `eis export --preview` | `POST /exports/preview` |
 | `eis audit verify` | `GET /audit/verify` |
+| `eis anchor status` | No API route; local operator preflight only |
+| `eis anchor create` | No API route; operator-triggered external checkpoint |
+| `eis anchor verify <anchor_id>` | No API route; local chain + external receipt verification |
 
-The CLI calls the application services in-process; the mapping above documents semantic equivalence, not a required network hop.
+The CLI calls the application services in-process; the mapping above documents semantic equivalence, not a required network hop. Anchor create/verify are deliberately CLI-only operator actions: the authenticated HTTP API exposes no route that triggers an external anchor write or reads external retention metadata. Nothing schedules anchoring; an operator must run the command explicitly.
 
 ## 5. Compatibility and Testing
 

@@ -154,7 +154,7 @@ The database never becomes the source of code, and Obsidian never becomes the da
 | Provider consent/audit schema and Alembic migrations | Implemented |
 | SQLite connection, WAL, foreign keys, busy timeout | Implemented |
 | Append-only hash-chained `audit_events` and verifier | Implemented; tamper-evident only |
-| External audit-anchor checkpoint interface | Implemented/tested with fake sink and an optional S3 Object Lock adapter tested with mocked AWS clients; no real bucket configured; local event is a receipt only |
+| External audit-anchor checkpoint interface | Implemented/tested with fake sink and an optional S3 Object Lock adapter tested with mocked AWS clients; operator `eis anchor create`/`verify` commands exist; no real bucket configured; local event is a receipt only |
 | Chained policy decisions | Implemented through `PolicyService`; queryable projection in migration 0003 |
 | A3 approvals and execution runs | Implemented; `execution_runs` successful rows are durable evidence for task/plan completion and execute retry recovery; broader approvals/actions planned |
 | Cancellation + human-review state transitions | Migration `0009`; atomic `cancelled`, `blocked->running`, `human_review`, `skipped/failed cancelled`; successful `execution_runs` prevents cancellation |
