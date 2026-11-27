@@ -2,7 +2,7 @@
 
 This folder is a beginner-friendly path through the skills you need to read, run and eventually extend the Engineering Intelligence System (EIS). It is not API documentation and it is not a promise that every described feature exists.
 
-EIS is currently at the M0.2 foundation plus M1 policy, provider, storage, audit, approvals, bounded execution, durable sessions/tasks, registered project tools, strict model envelopes, durable plans, explicit read-only recovery, task-bound write proposals with human approval, a fail-closed Linux T2 backend, and an optional S3 Object Lock anchor adapter with operator `eis anchor create`/`verify` commands. Delegation, approval decisions/execution and broader authenticated API resources, human-review continuation, broad resource resolution, and a real external audit-anchor deployment remain incomplete; hosted CI now exercises the real Linux T2 backend. Every guide marks the difference.
+EIS is currently at the M0.2 foundation plus M1 policy, provider, storage, audit, approvals, bounded execution, durable sessions/tasks, registered project tools, strict model envelopes, durable plans, explicit read-only recovery, task-bound write proposals with human approval, a fail-closed Linux T2 backend, expanded pattern-based egress and structured-log credential redaction, and an optional S3 Object Lock anchor adapter with operator `eis anchor create`/`verify` commands. Delegation, approval decisions/execution and broader authenticated API resources, human-review continuation, broad resource resolution, and a real external audit-anchor deployment remain incomplete; hosted CI now exercises the real Linux T2 backend. Every guide marks the difference.
 
 ## How to use this folder
 

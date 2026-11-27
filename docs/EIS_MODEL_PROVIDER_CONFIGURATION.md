@@ -160,6 +160,12 @@ The database path is the platform runtime directory plus `db/eis.sqlite3`.
 
 The gateway records an egress decision (`allow` or `deny`) before any network attempt. A denied call produces no HTTP request and records a `consent_denied` model-call audit entry with no consent reference.
 
+### 5.1 Pre-egress redaction and error handling
+
+`ModelGateway` applies `eis.core.redaction.redact_text` to the complete `CompletionRequest` immediately before calling the adapter. Recognized shapes include bearer/basic tokens, JWTs, PEM private-key blocks/headers, common API-key prefixes (`AKIA...`, `ghp_...`, `github_pat_...`, `AIza...`, `sk-...`, `xox...`), environment-style assignments and credential-bearing URLs (userinfo and credential query parameters). The runtime also redacts goals, tool-call echoes, tool feedback and display previews. `safe_log_event` rejects credential-shaped field names and drops string values that change under redaction. The audit record's `request_hash` is computed from the caller's pre-redaction request for correlation; the provider receives the redacted copy.
+
+Adapter errors contain only fixed status/parse messages, never response bodies. Unexpected adapter failures are replaced by `ProviderError("provider call failed")` with no cause chain. Provider-supplied `finish_reason` and `provider_request_id` values are bounded and rejected if credential-shaped before they enter an audit record. These rules are narrow defense in depth, not complete secret detection: novel, encoded, split, truncated or unrecognized secrets can pass.
+
 ## 6. Durable model-call audit
 
 `ModelGateway` records a content-free `ModelCallAudit`:
@@ -180,7 +186,7 @@ The gateway records an egress decision (`allow` or `deny`) before any network at
 }
 ```
 
-Records are persisted in SQLite tables `egress_decisions` and `model_calls`. They never store request messages, response text, prompts, API keys or raw provider bodies. Each projection row is committed with a content-free `audit_events` chain event. An egress allow is chained before the network attempt; the model-call outcome is chained after it, so a crash between them leaves a visible allow without an outcome rather than a silent call. The JSONL sink remains available for diagnostics but is not chained; the durable gateway factory uses SQLite. The chain is tamper-evident, not tamper-proof; an optional S3 Object Lock anchor adapter exists but no real bucket is configured or verified.
+Records are persisted in SQLite tables `egress_decisions` and `model_calls`. They never store request messages, response text, prompts, API keys or raw provider bodies. Provider-supplied `finish_reason` and `provider_request_id` values are sanitized/bounded before persistence. Each projection row is committed with a content-free `audit_events` chain event. An egress allow is chained before the network attempt; the model-call outcome is chained after it, so a crash between them leaves a visible allow without an outcome rather than a silent call. The JSONL sink remains available for diagnostics but is not chained; the durable gateway factory uses SQLite. The chain is tamper-evident, not tamper-proof; an optional S3 Object Lock anchor adapter exists but no real bucket is configured or verified.
 
 ## 7. Secret handling and `.env`
 

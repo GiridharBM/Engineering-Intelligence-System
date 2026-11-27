@@ -94,10 +94,10 @@ B7 Evidence boundary: workspace <-> append-only ledger
 
 | Threat | Example | Mitigation |
 |---|---|---|
-| Sensitive data disclosure | Full repository sent to cloud model | Local default, consent, classification ceiling, redaction |
+| Sensitive data disclosure | Full repository sent to cloud model | Local default, consent, classification ceiling, narrow credential-pattern redaction (best-effort) |
 | Prompt injection | Malicious README instructs a write | Authority separation, deterministic policy |
 | Model output as code | Tool arguments contain shell syntax | JSON Schema + no shell + command profiles |
-| Provider compromise | Cloud provider logs prompts | Consent, minimum context, no secrets ever |
+| Provider compromise | Cloud provider logs prompts | Consent, minimum context, no secrets in normal context; pre-egress redaction is best-effort |
 | Response tampering | MITM modifies tool call | TLS, no insecure endpoints, payload hash |
 
 ### B4 — Untrusted content
@@ -117,7 +117,7 @@ B7 Evidence boundary: workspace <-> append-only ledger
 | Malicious install script | `setup.sh` in a skill package | No execution at install; declarative-only default |
 | Permission escalation | Skill declares `project.write` | Permission diff + human approval; cap at role ceiling |
 | Dependency confusion | Skill requires a typosquatted package | Dependencies declared, reviewed, installed with approval |
-| Prompt exfiltration | Skill instructs model to print secrets | No secrets in context; redaction; output scan |
+| Prompt exfiltration | Skill instructs model to print secrets | No secrets in normal context; best-effort redaction; output scan |
 | Supply-chain update | Skill auto-updates to malicious version | Immutable versions, explicit update, signature/provenance |
 
 ### B6 — Tools and scanners
@@ -142,13 +142,14 @@ B7 Evidence boundary: workspace <-> append-only ledger
 | Anchor rewrite | Recompute chain and anchor | `AuditAnchorSink` checkpoint prefix binding + independent verification. Optional S3 Object Lock adapter verifies exact version/body digest/mode/retain-until and fails closed; mocked tests only, no real bucket verified |
 | Weak or bypassable retention | Operator chooses GOVERNANCE or grants `s3:BypassGovernanceRetention` | Explicit mode/duration configuration; adapter never requests bypass; docs require COMPLIANCE for non-bypassable retention and no bypass permission for the sink principal |
 | Bucket misconfiguration | Object Lock/versioning disabled or foreign bucket owner | Preflight requires versioning `Enabled`, Object Lock `Enabled` and `ExpectedBucketOwner` on every call; no bucket creation or configuration change |
+| Credential echo in errors/logs | Provider error body or log field reflects a key | Adapter errors never include response bodies; unexpected adapter failures are replaced by a fixed sanitized error with no cause chain; structured logs reject credential-shaped keys and drop values that change under redaction; audit metadata is bounded and sanitized |
 
 ## 6. Agent-Specific Threats (OWASP LLM Top 10 mapping)
 
 | Threat | OWASP LLM (2025) | EIS control | Residual |
 |---|---|---|---|
 | Prompt injection via repo/issues | LLM01 | SEC-07, policy gating, no instruction authority | Model may propose harmful action; blocked at execution |
-| Sensitive information disclosure | LLM02 | SEC-06, SEC-13, no C3 in context | Novel secret formats may evade |
+| Sensitive information disclosure | LLM02 | SEC-06, SEC-13, no C3 in context, pre-egress pattern redaction | Novel/encoded/split secret formats may evade; redaction is not complete DLP |
 | Supply chain (deps, skills, actions) | LLM03 | SEC-08, SEC-12, lockfiles, provenance | Zero-day in pinned dep |
 | Data/model poisoning (memory) | LLM04 | Verified state requires run evidence; provenance | User-approved bad evidence |
 | Improper output handling | LLM05 | Schema validation, no eval/exec of model text | None known for execution path |

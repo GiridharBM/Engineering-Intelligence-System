@@ -16,6 +16,7 @@ from eis.adapters.models.anthropic import AnthropicProvider
 from eis.adapters.models.base import (
     ChatMessage,
     CompletionRequest,
+    CompletionResponse,
     ProviderError,
     TokenUsage,
 )
@@ -353,3 +354,139 @@ def test_jsonl_audit_sink_contains_no_content_or_secret(tmp_path: Path) -> None:
     assert FAKE_KEY not in text
     assert "egress_decision" in text
     assert "model_call" in text
+
+
+class _CapturingProvider:
+    name = "opencode"
+
+    def __init__(self) -> None:
+        self.requests: list[CompletionRequest] = []
+
+    @property
+    def model(self) -> str:
+        return "test-model"
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        self.requests.append(request)
+        return CompletionResponse(text="ok", model="test-model", provider="opencode")
+
+
+class _ExplodingProvider:
+    name = "opencode"
+
+    def __init__(self, message: str) -> None:
+        self._message = message
+
+    @property
+    def model(self) -> str:
+        return "test-model"
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        raise RuntimeError(self._message)
+
+
+class _MetadataProvider:
+    name = "opencode"
+
+    def __init__(self, finish_reason: str, provider_request_id: str) -> None:
+        self._finish_reason = finish_reason
+        self._provider_request_id = provider_request_id
+
+    @property
+    def model(self) -> str:
+        return "test-model"
+
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        return CompletionResponse(
+            text="ok",
+            model="test-model",
+            provider="opencode",
+            finish_reason=self._finish_reason,
+            provider_request_id=self._provider_request_id,
+        )
+
+
+def test_gateway_redacts_before_provider_request() -> None:
+    token = "A" * 24
+    jwt = "eyJ" + "a" * 10 + "." + "b" * 10 + "." + "c" * 10
+    provider = _CapturingProvider()
+    sink = InMemoryAuditSink()
+    gateway = ModelGateway(provider, ConsentGate([_consent()]), sink)
+    request = CompletionRequest(
+        messages=(
+            ChatMessage(role="system", content="Be concise."),
+            ChatMessage(role="user", content=f"goal Bearer {token} {jwt}"),
+        ),
+        max_tokens=16,
+    )
+
+    response = asyncio.run(gateway.complete(request))
+
+    assert response.text == "ok"
+    sent = provider.requests[0].messages[-1].content
+    assert token not in sent
+    assert jwt not in sent
+    assert "[REDACTED:bearer_token]" in sent
+    assert "[REDACTED:json_web_token]" in sent
+    assert sink.model_calls[-1].request_hash == request.request_hash
+    assert token not in str(sink.model_calls[-1].as_dict())
+    assert jwt not in str(sink.model_calls[-1].as_dict())
+
+
+def test_provider_http_error_body_is_not_echoed() -> None:
+    secret = "AK" + "IA" + "A" * 16
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"error": "server", "credential": secret})
+
+    async def run():
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as client:
+            provider = OpenCodeProvider(
+                _config("opencode", "https://opencode.ai/inference/openai/v1"),
+                client=client,
+            )
+            sink = InMemoryAuditSink()
+            gateway = ModelGateway(provider, ConsentGate([_consent()]), sink)
+            with pytest.raises(ProviderError) as raised:
+                await gateway.complete(_request())
+            return raised.value, sink
+
+    error, sink = asyncio.run(run())
+    assert secret not in str(error)
+    assert secret not in repr(error)
+    assert sink.model_calls[-1].status == "provider_error"
+    assert secret not in str(sink.model_calls[-1].as_dict())
+
+
+def test_unexpected_provider_exception_is_sanitized_without_a_cause() -> None:
+    secret = "AK" + "IA" + "A" * 16
+    provider = _ExplodingProvider("boom " + secret)
+    sink = InMemoryAuditSink()
+    gateway = ModelGateway(provider, ConsentGate([_consent()]), sink)
+
+    with pytest.raises(ProviderError) as raised:
+        asyncio.run(gateway.complete(_request()))
+
+    assert secret not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert sink.model_calls[-1].status == "provider_error"
+    assert secret not in str(sink.model_calls[-1].as_dict())
+
+
+def test_audit_drops_credential_shaped_provider_metadata() -> None:
+    secret = "AK" + "IA" + "A" * 16
+    provider = _MetadataProvider(
+        finish_reason=secret,
+        provider_request_id="Bearer " + "A" * 24,
+    )
+    sink = InMemoryAuditSink()
+    gateway = ModelGateway(provider, ConsentGate([_consent()]), sink)
+
+    asyncio.run(gateway.complete(_request()))
+
+    audit = sink.model_calls[-1]
+    assert audit.finish_reason is None
+    assert audit.provider_request_id is None
+    assert secret not in str(audit.as_dict())
+    assert "Bearer" not in str(audit.as_dict())

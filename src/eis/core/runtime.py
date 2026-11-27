@@ -667,8 +667,14 @@ class SessionTaskRuntime:
             messages.append(
                 ChatMessage(
                     role="assistant",
-                    content=_canonical(
-                        {"kind": "tool_call", "tool": call.tool, "arguments": call.arguments_dict()}
+                    content=redact_text(
+                        _canonical(
+                            {
+                                "kind": "tool_call",
+                                "tool": call.tool,
+                                "arguments": call.arguments_dict(),
+                            }
+                        )
                     ),
                 )
             )

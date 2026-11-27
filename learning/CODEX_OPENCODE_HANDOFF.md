@@ -1044,3 +1044,21 @@ It prevents two agents from silently undoing each other's work. It does **not** 
 **Risks / remaining:** fake-sink evidence only; no real external-retention evidence. Operator-provisioned Object Lock bucket, explicit COMPLIANCE/GOVERNANCE mode and duration, least-privilege IAM without `s3:BypassGovernanceRetention`, a real `eis anchor create`/`verify` run, and independently retained evidence remain external requirements. Branch protection still needs GitHub admin; delegation belongs to M5; M0.2/M1 remain incomplete.
 
 **Hosted result (appended after push):** run `45994471245` for commit `5a6a6fa` reached `status=completed`, **`conclusion=success`**: all 12 jobs passed, including `T2 Linux container (real backend)`. No AWS job, credential, live AWS call or bucket was added; the anchor tests remain fake-sink only.
+
+---
+
+## 2026-11-27 — OpenCode (expanded egress and structured-log redaction)
+
+**Status:** verified locally; hosted result appended after push
+
+**Context:** Read the latest handoff and M1 roadmap, then traced `eis.core.redaction`, `ModelGateway`, all provider adapters, runtime prompt construction, structured logging, CLI/API diagnostic output and the SQLite/JSONL audit sinks. No `.env` read, no live provider or AWS call, no credential and no cloud resource.
+
+**Egress/log paths traced and covered:** (1) `ModelGateway.complete` → provider adapter HTTP payload; (2) runtime task-loop goal, tool-call echo and tool feedback; (3) runtime plan goal and display previews; (4) structured HTTP request logs and `safe_log_event` fields; (5) content-free egress/model-call audit records and provider-supplied metadata; (6) adapter HTTP/parse errors; (7) unexpected adapter exceptions; (8) CLI `provider-check`/task summaries and API fixed error details. Configuration metadata printed by CLI/API is limited to validated non-secret fields; keys remain `SecretStr` and `api_key=set` only.
+
+**Implemented:** expanded `redact_text` with narrow patterns for bearer/basic tokens, JWTs, PEM private-key blocks and headers, `AKIA`/`ghp_`/`github_pat_`/`AIza`/`sk-`/`xox` prefixes, prefixed credential assignments (e.g. `OPENAI_API_KEY=`, `AWS_SECRET_ACCESS_KEY=`) and credential-bearing URLs (userinfo and credential query values, while preserving the query key). `ModelGateway` now redacts the complete `CompletionRequest` immediately before calling the adapter; the provider receives the redacted copy while the content-free audit keeps the original request hash for correlation. Runtime tool-call echoes are redacted in addition to goals, tool feedback and display previews. `safe_log_event` rejects credential-shaped field names and drops string values that change under redaction. Audit `finish_reason` and `provider_request_id` are bounded and rejected when credential-shaped. Unexpected adapter exceptions become `ProviderError("provider call failed")` with no cause chain; adapter HTTP errors never echo response bodies. Tests cover recognized, unrecognized, mixed, malformed and false-positive-prone text, the gateway-to-provider boundary, HTTP error bodies, unexpected exceptions, audit metadata and structured logs. Documented that pattern rules are defense in depth, not complete secret detection.
+
+**Verify (local):** focused `tests/test_redaction.py tests/test_provider_adapters.py tests/test_runtime.py tests/test_audit_chain.py tests/test_storage.py` → **62 passed**; full `pytest -q` → **378 passed, 1 skipped**; `ruff check .` → All checks passed; `ruff format --check .` → 104 files; `mypy src` → 61 files, 0 issues; `privacy: ok`; `pip-audit` → no known vulnerabilities (local `eis` skipped as not on PyPI); `uv lock --check` exit 0; `uv build` + `verify_wheel.py` pass; Markdown links 43 files / 248 links / 0 broken.
+
+**Limits / risks:** the rules are narrow and deterministic. Novel, encoded, split, truncated or otherwise unusual secrets can still pass, and credential-shaped ordinary text can be over-redacted. C3 classification, consent and the decision to trust a provider remain the primary controls; this is not complete DLP. No live provider or AWS evidence was produced. Operator-provisioned S3 Object Lock bucket/retention, real retention evidence and GitHub branch protection remain external requirements; delegation remains M5; M0.2/M1 remain incomplete.
+
+**Hosted result (appended after push):** pending.

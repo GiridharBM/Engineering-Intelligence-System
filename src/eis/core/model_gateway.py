@@ -8,11 +8,13 @@ external text completion call and enforces consent before any network access.
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import UTC, datetime
 from typing import cast
 
 from eis.adapters.models.base import (
+    ChatMessage,
     CompletionRequest,
     CompletionResponse,
     ModelProvider,
@@ -21,6 +23,10 @@ from eis.adapters.models.base import (
 from eis.config import DataClass, ModelProviderName
 from eis.core.audit import AuditSink, CallStatus, EgressDecision, ModelCallAudit
 from eis.core.consent import ConsentGate
+from eis.core.redaction import redact_text
+
+_SAFE_PROVIDER_ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
+_SAFE_FINISH_REASON = re.compile(r"^[a-z0-9_.:-]{1,64}$")
 
 
 class ModelGateway:
@@ -91,7 +97,9 @@ class ModelGateway:
         started_at = _utc_now()
         started = time.perf_counter()
         try:
-            response = await self._provider.complete(request)
+            # The provider receives a redacted copy; the audit keeps the original
+            # request hash for correlation and never stores message content.
+            response = await self._provider.complete(redact_completion_request(request))
         except ProviderError:
             self._audit_sink.record_model_call(
                 _audit_record(
@@ -106,7 +114,7 @@ class ModelGateway:
                 )
             )
             raise
-        except Exception as exc:  # noqa: BLE001 - sanitize unexpected adapter failures
+        except Exception:  # noqa: BLE001 - sanitize unexpected adapter failures
             self._audit_sink.record_model_call(
                 _audit_record(
                     provider_name,
@@ -119,7 +127,7 @@ class ModelGateway:
                     consent.consent_id,
                 )
             )
-            raise ProviderError("provider call failed") from exc
+            raise ProviderError("provider call failed") from None
 
         self._audit_sink.record_model_call(
             _audit_record(
@@ -153,11 +161,37 @@ def _audit_record(
         started_at=started_at,
         latency_ms=round(elapsed_seconds * 1000, 3),
         status=status,
-        finish_reason=response.finish_reason if response else None,
+        finish_reason=_safe_finish_reason(response.finish_reason) if response else None,
         usage=response.usage if response else None,
-        provider_request_id=response.provider_request_id if response else None,
+        provider_request_id=(_safe_provider_id(response.provider_request_id) if response else None),
         consent_id=consent_id,
     )
+
+
+def redact_completion_request(request: CompletionRequest) -> CompletionRequest:
+    """Return a redacted provider-facing copy without mutating the caller's request."""
+    return CompletionRequest(
+        messages=tuple(
+            ChatMessage(role=message.role, content=redact_text(message.content))
+            for message in request.messages
+        ),
+        temperature=request.temperature,
+        max_tokens=request.max_tokens,
+    )
+
+
+def _safe_provider_id(value: str | None) -> str | None:
+    """Keep only a bounded, credential-free provider request identifier."""
+    if value is None or redact_text(value) != value:
+        return None
+    return value if _SAFE_PROVIDER_ID.fullmatch(value) else None
+
+
+def _safe_finish_reason(value: str | None) -> str | None:
+    """Keep only a bounded, credential-free finish-reason code."""
+    if value is None or redact_text(value) != value:
+        return None
+    return value if _SAFE_FINISH_REASON.fullmatch(value) else None
 
 
 def _utc_now() -> str:

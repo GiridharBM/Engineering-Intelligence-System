@@ -14,11 +14,24 @@ from typing import Any, cast
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from eis.core.redaction import redact_text
+
 correlation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "eis_correlation_id", default=""
 )
 _SAFE_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 _SAFE_VALUE = re.compile(r"^[A-Za-z0-9_.:/ -]{0,160}$")
+_UNSAFE_KEY_MARKERS = (
+    "secret",
+    "token",
+    "password",
+    "passwd",
+    "authorization",
+    "credential",
+    "cookie",
+    "key",
+    "auth",
+)
 
 
 def new_correlation_id() -> str:
@@ -26,17 +39,34 @@ def new_correlation_id() -> str:
 
 
 def safe_log_event(event: str, fields: Mapping[str, Any] | None = None) -> str:
-    """Serialize only short, explicitly safe scalar fields; drop all other values."""
+    """Serialize only short, explicitly safe scalar fields; drop all other values.
+
+    Credential-shaped key names are rejected and string values are redacted
+    before the allowlist check. A value that changes under redaction is dropped
+    rather than logged.
+    """
     record: dict[str, str | int | bool] = {"event": _safe_string(event, 80)}
     correlation = correlation_id_var.get()
     if correlation:
         record["correlation_id"] = correlation
     for key, value in (fields or {}).items():
-        if not _SAFE_KEY.fullmatch(key) or key in {"content", "prompt", "response", "secret"}:
+        if (
+            not _SAFE_KEY.fullmatch(key)
+            or _unsafe_key(key)
+            or key in {"content", "prompt", "response"}
+        ):
             continue
-        if isinstance(value, bool | int) or isinstance(value, str) and _SAFE_VALUE.fullmatch(value):
+        if isinstance(value, bool | int):
             record[key] = value
+        elif isinstance(value, str):
+            redacted = redact_text(value)
+            if redacted == value and _SAFE_VALUE.fullmatch(value):
+                record[key] = value
     return json.dumps(record, sort_keys=True, separators=(",", ":"))
+
+
+def _unsafe_key(key: str) -> bool:
+    return any(marker in key for marker in _UNSAFE_KEY_MARKERS)
 
 
 def log_event(logger: logging.Logger, event: str, fields: Mapping[str, Any] | None = None) -> None:

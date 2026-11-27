@@ -85,6 +85,7 @@ EIS_MODEL_CONSENT_CLASSES=C0,C1
 - The gateway records an egress decision before the call.
 - A successful or failed call produces a content-free model-call audit record: provider, model, request hash, timestamp, latency, status, usage, finish reason, provider request ID and consent reference.
 - Request messages, response text and keys are never stored in the audit record.
+- Before transport, the gateway redacts recognized credential shapes (bearer/basic tokens, JWTs, PEM blocks, common API-key prefixes and credential-bearing URLs) from the complete request. This is best-effort, not complete detection.
 - Consent and audit records are persisted in SQLite (`consents`, `egress_decisions`, `model_calls`).
 - Consent is revocable and expires; a revoked or expired record is ignored on the next call.
 - Every consent, egress and model-call write appends a content-free event to the hash-linked `audit_events` table in the same transaction.
