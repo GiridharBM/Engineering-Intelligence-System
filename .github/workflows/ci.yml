@@ -141,7 +141,7 @@ jobs:
     env:
       # Immutable multi-arch digest; no mutable tag is accepted by the backend.
       EIS_T2_IMAGE: docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
-      EIS_T2_SECCOMP: policies/t2-seccomp-probe.json
+      EIS_T2_SECCOMP: ${{ github.workspace }}/policies/t2-seccomp-probe.json
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

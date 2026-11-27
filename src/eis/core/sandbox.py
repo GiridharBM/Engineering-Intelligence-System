@@ -195,7 +195,7 @@ class LinuxContainerBackend:
             raise SandboxError("T2 requires an immutable image digest")
         self._engine = engine
         self._image = image
-        self._seccomp = Path(seccomp_profile)
+        self._seccomp = Path(seccomp_profile).resolve()
         checker = probe or probe_linux_container
         self._capabilities = checker(engine, image, self._seccomp)
         if not isinstance(self._capabilities, SandboxCapabilities):
@@ -309,6 +309,7 @@ def probe_linux_container(engine: str, image: str, seccomp_profile: Path) -> San
     capabilities. The probe uses ``--pull=never``; it never downloads an image.
     """
     caps = SandboxCapabilities(platform=sys.platform, engine=engine)
+    seccomp_profile = Path(seccomp_profile).resolve()
     if not sys.platform.startswith("linux"):
         return caps
     if shutil.which(engine) is None or not seccomp_profile.is_file():

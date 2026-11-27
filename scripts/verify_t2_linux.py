@@ -64,7 +64,7 @@ def _clean_containers() -> None:
 
 def main() -> int:
     image = _require_env("EIS_T2_IMAGE")
-    seccomp = Path(_require_env("EIS_T2_SECCOMP"))
+    seccomp = Path(_require_env("EIS_T2_SECCOMP")).resolve()
     if not seccomp.is_file():
         raise SystemExit("seccomp profile is missing")
     if sys.platform != "linux":
@@ -72,6 +72,24 @@ def main() -> int:
 
     caps = probe_linux_container("docker", image, seccomp)
     if not caps.sufficient:
+        missing = [
+            name
+            for name in (
+                "immutable_image",
+                "non_root",
+                "no_network",
+                "read_only_rootfs",
+                "read_only_project_mount",
+                "capabilities_dropped",
+                "no_new_privileges",
+                "seccomp",
+                "pids_limit",
+                "resource_limits",
+                "disposable_copy",
+            )
+            if not bool(getattr(caps, name))
+        ]
+        print(f"::error::T2 probe missing protections: {','.join(missing)}")
         raise SystemExit("hosted T2 capability probe did not demonstrate all protections")
     print("probe_platform=linux")
     print("probe_engine=docker")
